@@ -1,0 +1,22 @@
+# Python stuff
+venv/
+__pycache__/
+*.pyc
+
+# Environment variables
+.env
+
+# Node stuff
+node_modules/
+dist/
+dist-ssr/
+
+# VSCODE
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
