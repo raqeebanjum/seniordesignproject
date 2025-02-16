@@ -4,6 +4,17 @@
 - Node.js
 - Python3
 
-## Setup
+
+## Frontend Setup
 - from the root folder, run command "npm install" and that should install all the dependencies
 - After that, cd into the frontend folder and run command "npm run dev" and that'll open a local server where you can see the frontend
+
+## Backend Setup
+- cd into the backend folder and run "python3 -m venv venv" to create the virtual environment
+- "source venv/bin/activate" to activate the virtual environment( Be sure you're either on mac or linux)
+- After it's activated, run: "pip install -r requirements.txt" to install backend dependencies
+- NOTE: ignore the yellow errors for flask if you get them, idk why they won't go away
+
+## Usage
+- open a terminal and cd to the frontend folder and run "npm run dev" to start the frontend
+- open another terminal and cd to the backend folder and "python3 app.py" to start the backend
