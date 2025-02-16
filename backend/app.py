@@ -8,6 +8,10 @@ import os
 app = Flask(__name__)
 CORS(app)
 
+# audio folder won't push to github if it's empty, so create it if it doesn't exist
+os.makedirs('data/audio', exist_ok=True)
+
+
 # Route for handling the POST requests
 @app.route('/upload', methods=['POST'])
 def upload_audio():
