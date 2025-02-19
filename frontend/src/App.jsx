@@ -3,6 +3,8 @@ import { useState, useRef } from 'react';
 function App() {
   // states to check if recording is in progress
   const [isRecording, setIsRecording] = useState(false);
+  // AI-generated audio URL
+  const [audioURL, setAudioURL] = useState(null); 
   // reference to mediarecorder instance
   const mediaRecorderRef = useRef(null);
   // reference to audio chunks
@@ -10,6 +12,9 @@ function App() {
 
   // function to start recording
   const startRecording = () => {
+    // Reset before starting new recording
+    audioChunksRef.current = [];
+
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(stream => {
         mediaRecorderRef.current = new MediaRecorder(stream);
@@ -27,17 +32,29 @@ function App() {
     setIsRecording(false);
     
     // when the recording stops, create a blob from the audio chunks
-    mediaRecorderRef.current.onstop = () => {
+    mediaRecorderRef.current.onstop = async () => {
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.wav');
 
       console.log('Sending audio to backend...');
       // send the audio blob to the backend
-      fetch('http://localhost:5001/upload', {
+      const response = await fetch('http://localhost:5001/upload', {
         method: 'POST',
         body: formData
       });
+      const data = await response.json();
+      console.log("Transcript:", data.transcript);
+      console.log("Detected PO:", data.po_number);
+
+      // Fetch and play AI-generated speech file
+      fetch("http://localhost:5001/get-ai-audio")
+        .then((res) => res.blob())
+        .then((audioBlob) => {
+          const audioURL = URL.createObjectURL(audioBlob);
+          setAudioURL(audioURL);
+        })
+        .catch((error) => console.error("Error fetching AI audio:", error));
     };
   };
 
@@ -51,6 +68,14 @@ function App() {
       >
         {isRecording ? 'Stop Recording' : 'Record'}
       </button>
+
+      // Automatically play AI-generated response
+      {audioURL && (
+        <audio controls autoPlay>
+          <source src={audioURL} type="audio/wav" />
+          Your browser does not support the audio element.
+        </audio>
+      )}
     </div>
   );
 }
