@@ -12,6 +12,7 @@
 - cd into the backend folder and run "python3 -m venv venv" to create the virtual environment
 - "source venv/bin/activate" to activate the virtual environment( Be sure you're either on mac or linux)
 - After it's activated, run: "pip install -r requirements.txt" to install backend dependencies
+- Make sure to install Azure Cognitive Services Speech SDK: "pip install azure-cognitiveservices-speech"
 - NOTE: ignore the yellow errors for flask if you get them, idk why they won't go away
 
 ## Usage
