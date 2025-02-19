@@ -6,13 +6,7 @@ from flask_cors import CORS
 import os
 
 app = Flask(__name__)
-CORS(app, resources={
-    r"/upload": {
-        "origins": ["http://localhost:5173"],
-        "methods": ["POST"],
-        "allow_headers": ["Content-Type"]
-    }
-})
+CORS(app)
 
 # audio folder won't push to github if it's empty, so create it if it doesn't exist
 os.makedirs('data/audio', exist_ok=True)
@@ -28,6 +22,6 @@ def upload_audio():
     return 'File uploaded successfully'
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    app.run(port=5001, debug=True)
     
     

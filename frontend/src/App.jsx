@@ -34,7 +34,7 @@ function App() {
 
       console.log('Sending audio to backend...');
       // send the audio blob to the backend
-      fetch('http://localhost:5000/upload', {
+      fetch('http://localhost:5001/upload', {
         method: 'POST',
         body: formData
       });
