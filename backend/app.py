@@ -4,7 +4,7 @@ from flask import Flask, request, jsonify, send_file
 from flask_cors import CORS
 # for filepath stuff
 import os
-
+from pydub import AudioSegment
 import azure.cognitiveservices.speech as speechsdk
 
 # Azure API keys
@@ -17,6 +17,11 @@ CORS(app)
 # audio folder won't push to github if it's empty, so create it if it doesn't exist
 os.makedirs('data/audio', exist_ok=True)
 os.makedirs('data/ai_audio', exist_ok=True)
+
+def convert_audio_to_wav(input_path, output_path):
+    audio = AudioSegment.from_file(input_path)
+    audio = audio.set_channels(1).set_frame_rate(16000)
+    audio.export(output_path, format='wav')
 
 def recognize_speech_from_file(audio_path):
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
@@ -51,13 +56,16 @@ def upload_audio():
     # Getting the audio file from the request
     audio_file = request.files['audio']
 
-    file_path = os.path.join('data/audio', audio_file.filename)
+    # Save the original WebM file
+    original_path = os.path.join('data/audio', 'original.webm')
+    audio_file.save(original_path)
     
-    # Save the file to the data/audio folder
-    audio_file.save(file_path)
+    # Convert WebM to WAV format that Azure likes
+    wav_path = os.path.join('data/audio', 'processed.wav')
+    convert_audio_to_wav(original_path, wav_path)
 
     # Transcribe speech
-    transcript = recognize_speech_from_file(file_path)
+    transcript = recognize_speech_from_file(wav_path)
 
     # Assume the transcript is the PO number
     ai_text = f"I heard {transcript}, is that correct?"

@@ -3,6 +3,8 @@
 ## Things to install beforehand
 - Node.js
 - Python3
+- Homebrew, install it here: https://brew.sh/
+- ffmpeg (after installing Homebrew, run: `brew install ffmpeg`)
 
 
 ## Frontend Setup

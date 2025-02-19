@@ -17,7 +17,9 @@ function App() {
 
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(stream => {
-        mediaRecorderRef.current = new MediaRecorder(stream);
+        mediaRecorderRef.current = new MediaRecorder(stream, {
+          mimeType: 'audio/webm'
+        });
         mediaRecorderRef.current.ondataavailable = (event) => {
           audioChunksRef.current.push(event.data);
         };
@@ -33,9 +35,9 @@ function App() {
     
     // when the recording stops, create a blob from the audio chunks
     mediaRecorderRef.current.onstop = async () => {
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
+      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
       const formData = new FormData();
-      formData.append('audio', audioBlob, 'recording.wav');
+      formData.append('audio', audioBlob, 'recording.webm');
 
       console.log('Sending audio to backend...');
       // send the audio blob to the backend
@@ -69,7 +71,7 @@ function App() {
         {isRecording ? 'Stop Recording' : 'Record'}
       </button>
 
-      // Automatically play AI-generated response
+      {/* Automatically play AI-generated response */}
       {audioURL && (
         <audio controls autoPlay>
           <source src={audioURL} type="audio/wav" />
