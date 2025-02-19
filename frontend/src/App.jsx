@@ -32,6 +32,7 @@ function App() {
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.wav');
 
+      console.log('Sending audio to backend...');
       // send the audio blob to the backend
       fetch('http://localhost:5000/upload', {
         method: 'POST',
