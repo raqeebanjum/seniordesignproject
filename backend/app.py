@@ -6,10 +6,10 @@ from flask_cors import CORS
 import os
 
 import azure.cognitiveservices.speech as speechsdk
-from dotenv import load_dotenv
 
-# Load enviornment variables from .env file
-load_dotenv()
+# Azure API keys
+speech_key = "G1qZMOd4MFuiqN6jwSPcStpRPgdl3zAQM0PxfFNXFIfXMq7v2ALbJQQJ99BBACYeBjFXJ3w3AAAYACOGorwn"
+service_region = "eastus"
 
 app = Flask(__name__)
 CORS(app)
@@ -17,10 +17,6 @@ CORS(app)
 # audio folder won't push to github if it's empty, so create it if it doesn't exist
 os.makedirs('data/audio', exist_ok=True)
 os.makedirs('data/ai_audio', exist_ok=True)
-
-# Load Azure API keys
-speech_key = os.getenv("SPEECH_KEY")
-service_region = os.getenv("SPEECH_REGION")
 
 def recognize_speech_from_file(audio_path):
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
