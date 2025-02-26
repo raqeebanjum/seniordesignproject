@@ -41,7 +41,7 @@ function App() {
 
       console.log('Sending audio to backend...');
       // send the audio blob to the backend
-      const response = await fetch('http://localhost:5001/upload', {
+      const response = await fetch('/upload', {
         method: 'POST',
         body: formData
       });
@@ -50,7 +50,7 @@ function App() {
       console.log("Detected PO:", data.po_number);
 
       // Fetch and play AI-generated speech file
-      fetch("http://localhost:5001/get-ai-audio")
+      fetch("/get-ai-audio")
         .then((res) => res.blob())
         .then((audioBlob) => {
           const audioURL = URL.createObjectURL(audioBlob);
