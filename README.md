@@ -1,22 +1,57 @@
 # Senior Design Project
 
-## Things to install beforehand
-- Node.js
-- Python3
-- Homebrew, install it here: https://brew.sh/
-- ffmpeg (after installing Homebrew, run: `brew install ffmpeg`)
+## Installation Guide
+
+### Windows Setup
+
+1. **Install Docker Desktop**
+   - Download [Docker Desktop for Windows](https://www.docker.com/products/docker-desktop/)
+   - Run the installer
+   - Follow the installation wizard
+   - Restart your computer if prompted
+   - Start Docker Desktop and wait for it to fully initialize (whale icon in taskbar becomes steady)
 
 
-## Frontend Setup
-- cd to frontend folder, run command "npm install" and that should install all the dependencies
 
-## Backend Setup
-- cd into the backend folder and run "python3 -m venv venv" to create the virtual environment
-- "source venv/bin/activate" to activate the virtual environment( Be sure you're either on mac or linux)
-- After it's activated, run: "pip install -r requirements.txt" to install backend dependencies
-- Make sure to install Azure Cognitive Services Speech SDK: "pip install azure-cognitiveservices-speech"
-- NOTE: ignore the yellow errors for flask if you get them, idk why they won't go away
+2. **Start the Application**
+   - Double-click `start-windows.bat`
+      - If you get a warning from windows, click `Run anyway`
+   - Wait for the application to initialize
+   - The script will automatically:
+     - Check if Docker is running
+     - Build the application
+     - Start the application
+   - Open your browser and go to http://localhost:5001
+   - Note: Will take a few minutes to build application the first time
+   - Note: Might have to run as admin and if you see firewall popups, click allow
 
-## Usage
-- open a terminal and cd to the frontend folder and run "npm run dev" to start the frontend
-- open another terminal and cd to the backend folder and "python3 app.py" to start the backend
+### Mac Setup
+
+1. **Install Docker Desktop**
+   - Download [Docker Desktop for Mac](https://www.docker.com/products/docker-desktop/)
+   - Open the downloaded .dmg file
+   - Drag Docker to Applications folder
+   - Start Docker Desktop from Applications
+   - Wait for Docker to fully initialize (whale icon in menu bar becomes steady)
+
+2. **Start the Application**
+   - Open Terminal
+   - Navigate to the application folder:
+     ```zsh
+     cd path/to/SENIORDESIGNPROJECT
+     ```
+   - Make the start script executable (first time only):
+     ```zsh
+     chmod +x start.sh
+     ```
+   - If you have permission issues, run this Command
+      ```zsh
+     sudo chmod +x start.sh
+     ```
+   - Run the application:
+     ```zsh
+     ./start.sh
+     ```
+
+   - The script will automatically:
+   - Open your browser and go to http://localhost:5001

@@ -25,3 +25,12 @@ dist-ssr/
 # Not pushing the audio files 
 *.wav
 *.webm
+
+# The docker stuff
+.docker/
+docker-compose.override.yml
+*.log
+data/
+.docker-compose/
+docker-compose.override.yaml
+docker-compose.override.yml

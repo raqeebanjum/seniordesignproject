@@ -1,5 +1,5 @@
 # Flask for web server
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 # CORS library to allow requests from frontend
 from flask_cors import CORS
 # for filepath stuff
@@ -50,6 +50,16 @@ def synthesize_speech(text, output_path):
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
         print(f"Text-to-Speech failed: {result.error_details}")
 
+# Route for serving the React app
+@app.route('/')
+def serve_react():
+    return send_file('static/index.html')
+
+@app.route('/<path:path>')
+def serve_static(path):
+    return send_file(f'static/{path}')
+
+
 # Route for handling the POST requests
 @app.route('/upload', methods=['POST'])
 def upload_audio():
@@ -86,7 +96,8 @@ def get_ai_audio():
     ai_audio_path = os.path.join('data/ai_audio', "ai_response.wav")
     return send_file(ai_audio_path, mimetype="audio/wav")
 
+
 if __name__ == '__main__':
-    app.run(port=5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
     
     
