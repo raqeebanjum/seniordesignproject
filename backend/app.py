@@ -18,6 +18,8 @@ CORS(app)
 os.makedirs('data/audio', exist_ok=True)
 os.makedirs('data/ai_audio', exist_ok=True)
 
+po_dict = {}
+
 def convert_audio_to_wav(input_path, output_path):
     audio = AudioSegment.from_file(input_path)
     audio = audio.set_channels(1).set_frame_rate(16000)
@@ -50,6 +52,42 @@ def synthesize_speech(text, output_path):
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
         print(f"Text-to-Speech failed: {result.error_details}")
 
+def read_json_to_dict():
+    file_path = os.path.join(os.path.dirname(__file__), "data", "items.json")
+    try:
+        with open(file_path, 'r') as file:
+            data = json.load(file)
+        
+        po_dict = {}
+        for po, details in data.items():
+            po_dict[po] = []
+            for item_name, item_info in details["items"].items():
+                po_dict[po].append({
+                    "item_name": item_name,
+                    "item_number": item_info["item_number"],
+                    "bin_location": item_info["bin_location"]
+                })
+        
+        return po_dict
+    except FileNotFoundError:
+        print(f"Error: PO data JSON file not found at {file_path}.")
+        return {}
+    
+read_json_to_dict()
+@app.route('/get-po-details', methods=['GET'])
+def get_po_details():
+    """
+    Fetches PO details for a given PO number.
+    Example request: /get-po-details?po_number=PO1234
+    """
+    po_number = request.args.get('po_number')
+    po_details = po_dict.get(po_number, [])
+
+    if po_details:
+        return jsonify({"po_number": po_number, "items": po_details})
+    else:
+        return jsonify({"error": "PO not found"}), 404
+    
 # Route for serving the React app
 @app.route('/')
 def serve_react():
