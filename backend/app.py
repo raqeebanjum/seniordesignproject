@@ -53,43 +53,27 @@ def synthesize_speech(text, output_path):
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
         print(f"Text-to-Speech failed: {result.error_details}")
 
-def load_json_data():
-    """
-    Reads the JSON file and stores the PO data in a dictionary.
-    """
-    global po_data
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+FILE_PATH = os.path.join(BASE_DIR, "backend", "data", "items.json")  # Adjust based on your actual path
 
-    base_dir = os.path.abspath(os.path.dirname(__file__))  
-    file_path = os.path.join(base_dir, "backend", "data", "items.json")  
+try:
+    with open(FILE_PATH, "r") as file:
+        po_data = json.load(file)  # Stores the data in a global variable
+        print("✅ PO data loaded successfully!")
+except FileNotFoundError:
+    print(f"❌ Error: File not found at {FILE_PATH}. Check the path.")
+    po_data = {}  # Assign empty dictionary if file not found
+except json.JSONDecodeError:
+    print("❌ Error: Invalid JSON format in items.json.")
+    po_data = {}  # Assign empty dictionary if JSON is malformed
 
-    print(f"📂 Looking for JSON file at: {file_path}")  # Debugging print
-
-    try:
-        with open(file_path, 'r') as file:
-            po_data = json.load(file)
-            print("✅ PO data loaded successfully!")
-            print(json.dumps(po_data, indent=4))  # Print the dictionary
-    except FileNotFoundError:
-        print(f"❌ Error: File not found at {file_path}. Check the path.")
-    except json.JSONDecodeError:
-        print("❌ Error: Invalid JSON format in items.json.")
-        
-load_json_data()
-
-@app.route('/get-po-details', methods=['GET'])
+# ✅ Example Route to Use Loaded Data
+@app.route('/get-po-details')
 def get_po_details():
-    """
-    Fetches PO details for a given PO number.
-    Example request: /get-po-details?po_number=PO1234
-    """
-    po_number = request.args.get('po_number')
-    po_details = po_dict.get(po_number, [])
+    return po_data  # Returns the preloaded JSON data
 
-    if po_details:
-        return jsonify({"po_number": po_number, "items": po_details})
-    else:
-        return jsonify({"error": "PO not found"}), 404
-    
+
+
 # Route for serving the React app
 @app.route('/')
 def serve_react():
