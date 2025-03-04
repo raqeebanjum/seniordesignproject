@@ -1,4 +1,5 @@
 # Flask for web server
+import json
 from flask import Flask, request, jsonify, send_file, send_from_directory
 # CORS library to allow requests from frontend
 from flask_cors import CORS
@@ -52,28 +53,29 @@ def synthesize_speech(text, output_path):
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
         print(f"Text-to-Speech failed: {result.error_details}")
 
-def read_json_to_dict():
-    file_path = os.path.join(os.path.dirname(__file__), "data", "items.json")
+def load_json_data():
+    """
+    Reads the JSON file and stores the PO data in a dictionary.
+    """
+    global po_data
+
+    base_dir = os.path.abspath(os.path.dirname(__file__))  
+    file_path = os.path.join(base_dir, "backend", "data", "items.json")  
+
+    print(f"📂 Looking for JSON file at: {file_path}")  # Debugging print
+
     try:
         with open(file_path, 'r') as file:
-            data = json.load(file)
-        
-        po_dict = {}
-        for po, details in data.items():
-            po_dict[po] = []
-            for item_name, item_info in details["items"].items():
-                po_dict[po].append({
-                    "item_name": item_name,
-                    "item_number": item_info["item_number"],
-                    "bin_location": item_info["bin_location"]
-                })
-        
-        return po_dict
+            po_data = json.load(file)
+            print("✅ PO data loaded successfully!")
+            print(json.dumps(po_data, indent=4))  # Print the dictionary
     except FileNotFoundError:
-        print(f"Error: PO data JSON file not found at {file_path}.")
-        return {}
-    
-read_json_to_dict()
+        print(f"❌ Error: File not found at {file_path}. Check the path.")
+    except json.JSONDecodeError:
+        print("❌ Error: Invalid JSON format in items.json.")
+        
+load_json_data()
+
 @app.route('/get-po-details', methods=['GET'])
 def get_po_details():
     """
