@@ -21,6 +21,23 @@ os.makedirs('data/ai_audio', exist_ok=True)
 
 po_dict = {}
 
+
+itemsFilePath = os.path.join("data", "items.json")
+try:
+    with open(itemsFilePath, "r") as file:
+        po_dict = json.load(file)
+        print("✅ PO data loaded successfully!")
+except FileNotFoundError:
+    print(f"❌ Error: File not found at {itemsFilePath}. Check the path.")
+    po_dict = {}
+except json.JSONDecodeError:
+    print("❌ Error: Invalid JSON format in items.json.")
+    po_dict = {}
+
+# for checking the PO data from the dictionary manually
+#print(po_dict)
+
+
 def convert_audio_to_wav(input_path, output_path):
     audio = AudioSegment.from_file(input_path)
     audio = audio.set_channels(1).set_frame_rate(16000)
@@ -52,25 +69,6 @@ def synthesize_speech(text, output_path):
     
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
         print(f"Text-to-Speech failed: {result.error_details}")
-
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-FILE_PATH = os.path.join(BASE_DIR, "backend", "data", "items.json")  # Adjust based on your actual path
-
-try:
-    with open(FILE_PATH, "r") as file:
-        po_data = json.load(file)  # Stores the data in a global variable
-        print("✅ PO data loaded successfully!")
-except FileNotFoundError:
-    print(f"❌ Error: File not found at {FILE_PATH}. Check the path.")
-    po_data = {}  # Assign empty dictionary if file not found
-except json.JSONDecodeError:
-    print("❌ Error: Invalid JSON format in items.json.")
-    po_data = {}  # Assign empty dictionary if JSON is malformed
-
-# ✅ Example Route to Use Loaded Data
-@app.route('/get-po-details')
-def get_po_details():
-    return po_data  # Returns the preloaded JSON data
 
 
 
