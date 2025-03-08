@@ -1,4 +1,5 @@
 # Flask for web server
+import json
 from flask import Flask, request, jsonify, send_file, send_from_directory
 # CORS library to allow requests from frontend
 from flask_cors import CORS
@@ -17,6 +18,25 @@ CORS(app)
 # audio folder won't push to github if it's empty, so create it if it doesn't exist
 os.makedirs('data/audio', exist_ok=True)
 os.makedirs('data/ai_audio', exist_ok=True)
+
+po_dict = {}
+
+
+itemsFilePath = os.path.join("data", "items.json")
+try:
+    with open(itemsFilePath, "r") as file:
+        po_dict = json.load(file)
+        print("✅ PO data loaded successfully!")
+except FileNotFoundError:
+    print(f"❌ Error: File not found at {itemsFilePath}. Check the path.")
+    po_dict = {}
+except json.JSONDecodeError:
+    print("❌ Error: Invalid JSON format in items.json.")
+    po_dict = {}
+
+# for checking the PO data from the dictionary manually
+#print(po_dict)
+
 
 def convert_audio_to_wav(input_path, output_path):
     audio = AudioSegment.from_file(input_path)
@@ -49,6 +69,8 @@ def synthesize_speech(text, output_path):
     
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
         print(f"Text-to-Speech failed: {result.error_details}")
+
+
 
 # Route for serving the React app
 @app.route('/')

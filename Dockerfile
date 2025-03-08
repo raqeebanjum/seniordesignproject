@@ -1,5 +1,5 @@
 # Build frontend
-FROM node:18 as frontend-builder
+FROM node:18 AS frontend-builder
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm install
@@ -21,15 +21,18 @@ RUN apt-get update && \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code
-COPY backend .
+# Copy entire backend directory structure
+COPY backend/ ./backend/
 
-# Create data directories
-RUN mkdir -p data/audio data/ai_audio
+# Create audio directories
+RUN mkdir -p backend/data/audio backend/data/ai_audio
 
 # Copy built frontend files
-COPY --from=frontend-builder /app/frontend/dist ./static/
+COPY --from=frontend-builder /app/frontend/dist ./backend/static/
 
 EXPOSE 5001
+
+# Change working directory to backend
+WORKDIR /app/backend
 
 CMD ["python", "app.py"]
