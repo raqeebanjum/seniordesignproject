@@ -36,6 +36,16 @@ except json.JSONDecodeError:
 
 # for checking the PO data from the dictionary manually
 #print(po_dict)
+def print_po_details(po_number):
+    if po_number in po_dict:
+        print(f"PO Number: {po_number}")
+        print("Items:")
+        for item_name, details in po_dict[po_number]["items"].items():
+            print(f"- {item_name}")
+            print(f"  Item Number: {details['item_number']}")
+            print(f"  Bin Location: {details['bin_location']}")
+    else:
+        print(f"❌ PO Number '{po_number}' not found.")
 
 
 def convert_audio_to_wav(input_path, output_path):
