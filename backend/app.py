@@ -34,13 +34,18 @@ except json.JSONDecodeError:
     print("❌ Error: Invalid JSON format in items.json.")
     po_dict = {}
 
-
-def print_item_details(po_number, item_details):
-    """
-        This should print the PO Number, and stuff in the PO to the console
-        Just get them from the dictionary and print them in a nice way
-    """
-    
+# for checking the PO data from the dictionary manually
+#print(po_dict)
+def print_po_details(po_number):
+    if po_number in po_dict:
+        print(f"PO Number: {po_number}")
+        print("Items:")
+        for item_name, details in po_dict[po_number]["items"].items():
+            print(f"- {item_name}")
+            print(f"  Item Number: {details['item_number']}")
+            print(f"  Bin Location: {details['bin_location']}")
+    else:
+        print(f"❌ PO Number '{po_number}' not found.")
 
 
 def convert_audio_to_wav(input_path, output_path):
@@ -76,6 +81,7 @@ def synthesize_speech(text, output_path):
         print(f"Text-to-Speech failed: {result.error_details}")
 
 
+
 # Route for serving the React app
 @app.route('/')
 def serve_react():
@@ -102,21 +108,9 @@ def upload_audio():
 
     # Transcribe speech
     transcript = recognize_speech_from_file(wav_path)
-    
-    # Cleaning up the transcript
-    clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
-    
-    # Converting the PO number letters in the beginning to uppercase because they're coming in lowercase
-    po_number = clean_transcript.upper()
-    
-    # Check if the PO number exists in our dictionary
-    # Checking to see if the PO number actually exists in the dictionary
-    if po_number in po_dict:
-        # If the PO number exists, then we can print the details of the PO number to the console
-        print_item_details(po_number, po_dict[po_number])
-        ai_text = f"Here are the Items in: {transcript}."
-    else:
-        ai_text = f"I heard {transcript}, is that correct?"
+
+    # Assume the transcript is the PO number
+    ai_text = f"I heard {transcript}, is that correct?"
 
     # Generate AI response
     ai_audio_path = os.path.join('data/ai_audio', "ai_response.wav")
@@ -124,7 +118,7 @@ def upload_audio():
 
     return jsonify({
         "message": "File processed successfully",
-        "po_number": transcript,
+        "po_number": transcript,  # Assume full transcript is the PO number
         "ai_audio": ai_audio_path
     })
 
@@ -137,3 +131,5 @@ def get_ai_audio():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
+    
+    
