@@ -36,6 +36,8 @@ except json.JSONDecodeError:
 
 # for checking the PO data from the dictionary manually
 #print(po_dict)
+
+
 def print_po_details(po_number):
     if po_number in po_dict:
         print(f"PO Number: {po_number}")
@@ -81,7 +83,6 @@ def synthesize_speech(text, output_path):
         print(f"Text-to-Speech failed: {result.error_details}")
 
 
-
 # Route for serving the React app
 @app.route('/')
 def serve_react():
@@ -108,9 +109,21 @@ def upload_audio():
 
     # Transcribe speech
     transcript = recognize_speech_from_file(wav_path)
-
-    # Assume the transcript is the PO number
-    ai_text = f"I heard {transcript}, is that correct?"
+    
+    # Cleaning up the transcript
+    clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
+    
+    # Convert to uppercase for matching against the PO dictionary
+    po_number = clean_transcript.upper()
+    
+    # Call the print_po_details function to print details to console
+    print_po_details(po_number)
+    
+    # Check if the PO number exists in our dictionary for AI response
+    if po_number in po_dict:
+        ai_text = f"I heard {transcript}. Item."
+    else:
+        ai_text = f"I heard {transcript}, is that correct?"
 
     # Generate AI response
     ai_audio_path = os.path.join('data/ai_audio', "ai_response.wav")
@@ -118,7 +131,7 @@ def upload_audio():
 
     return jsonify({
         "message": "File processed successfully",
-        "po_number": transcript,  # Assume full transcript is the PO number
+        "po_number": transcript,
         "ai_audio": ai_audio_path
     })
 
@@ -131,5 +144,3 @@ def get_ai_audio():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
-    
-    
