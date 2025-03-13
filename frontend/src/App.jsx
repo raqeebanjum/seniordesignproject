@@ -5,9 +5,9 @@ const AudioControls = ({ isRecording, startRecording, stopRecording, resetApp, h
   return (
     <div className="flex gap-4 mb-4">
       <button 
-        className={`py-2 px-4 rounded-lg ${isRecording 
-          ? 'bg-red-500 hover:bg-red-600' 
-          : 'bg-blue-500 hover:bg-blue-600'} text-white font-semibold`}
+        className={`btn ${isRecording 
+          ? 'btn-error' 
+          : 'btn-primary'}`}
         onClick={isRecording ? stopRecording : startRecording}
       >
         {isRecording ? 'Stop Recording' : 'Record Voice Input'}
@@ -15,7 +15,7 @@ const AudioControls = ({ isRecording, startRecording, stopRecording, resetApp, h
       
       {!isRecording && hasData && (
         <button 
-          className="py-2 px-4 rounded-lg bg-gray-500 hover:bg-gray-600 text-white font-semibold"
+          className="btn btn-neutral"
           onClick={resetApp}
         >
           Reset
@@ -28,9 +28,11 @@ const AudioControls = ({ isRecording, startRecording, stopRecording, resetApp, h
 // Component for displaying PO details
 const PODetails = ({ details }) => {
   return details ? (
-    <div className="mt-4 p-4 border rounded-lg bg-gray-50 max-w-lg w-full">
-      <h2 className="text-xl font-semibold mb-2">PO Details:</h2>
-      <pre className="whitespace-pre-line text-sm">{details}</pre>
+    <div className="card bg-base-200 shadow-lg mt-4 max-w-lg w-full">
+      <div className="card-body">
+        <h2 className="card-title">PO Details:</h2>
+        <pre className="whitespace-pre-line text-sm">{details}</pre>
+      </div>
     </div>
   ) : null;
 };
@@ -39,7 +41,7 @@ const PODetails = ({ details }) => {
 const AudioPlayer = ({ url, audioRef }) => {
   return url ? (
     <div className="mt-4">
-      <audio ref={audioRef} controls autoPlay>
+      <audio ref={audioRef} controls autoPlay className="w-full">
         <source src={url} type="audio/wav" />
         Your browser does not support the audio element.
       </audio>
@@ -176,10 +178,10 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col items-center justify-center h-screen gap-4 p-4">
+    <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4">
       <h1 className="text-2xl font-bold mb-4">PO Lookup System</h1>
       
-      <div className="text-lg mb-2">{statusMessage}</div>
+      <div className="text-lg font-medium mb-2">{statusMessage}</div>
       
       {/* Main control buttons */}
       <AudioControls 
