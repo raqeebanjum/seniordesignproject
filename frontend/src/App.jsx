@@ -200,27 +200,3 @@ function App() {
 }
 
 export default App;
-
-//Buttons
-    {/*   Confirmation buttons
-      {showConfirmOptions && (
-        <div className="mt-4 flex gap-3 items-center">
-          <button 
-            className="py-2 px-6 rounded-lg bg-green-500 hover:bg-green-600 text-white font-semibold"
-            onClick={() => handleConfirmation(true)}
-          >
-            Yes, that's correct
-          </button>
-          
-          <button 
-            className="py-2 px-6 rounded-lg bg-red-500 hover:bg-red-600 text-white font-semibold"
-            onClick={() => handleConfirmation(false)}
-          >
-            No, try again
-          </button>
-          
-          <div className="text-sm text-gray-600">
-            (Or say "Yes" to confirm, "No" to try again)
-          </div>
-        </div>
-      )} */}
