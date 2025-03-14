@@ -19,9 +19,11 @@ CORS(app)
 os.makedirs('data/audio', exist_ok=True)
 os.makedirs('data/ai_audio', exist_ok=True)
 
+# Store the last detected PO number for confirmation
+last_detected_po = None
+
+# Load PO data
 po_dict = {}
-
-
 itemsFilePath = os.path.join("data", "items.json")
 try:
     with open(itemsFilePath, "r") as file:
@@ -29,33 +31,36 @@ try:
         print("✅ PO data loaded successfully!")
 except FileNotFoundError:
     print(f"❌ Error: File not found at {itemsFilePath}. Check the path.")
-    po_dict = {}
 except json.JSONDecodeError:
     print("❌ Error: Invalid JSON format in items.json.")
-    po_dict = {}
 
-# for checking the PO data from the dictionary manually
-#print(po_dict)
+# File paths
+WAV_PATH = os.path.join('data/audio', 'processed.wav')
+ORIGINAL_PATH = os.path.join('data/audio', 'original.webm')
+AI_AUDIO_PATH = os.path.join('data/ai_audio', "ai_response.wav")
 
-
-def print_po_details(po_number):
+def get_po_details(po_number):
+    """Get formatted details of a PO number"""
     if po_number in po_dict:
-        print(f"PO Number: {po_number}")
-        print("Items:")
+        details_str = f"PO Number: {po_number}\nItems:\n"
         for item_name, details in po_dict[po_number]["items"].items():
-            print(f"- {item_name}")
-            print(f"  Item Number: {details['item_number']}")
-            print(f"  Bin Location: {details['bin_location']}")
+            details_str += f"- {item_name}\n"
+            details_str += f"  Item Number: {details['item_number']}\n"
+            details_str += f"  Bin Location: {details['bin_location']}\n"
+        
+        return details_str
     else:
         print(f"❌ PO Number '{po_number}' not found.")
-
+        return None
 
 def convert_audio_to_wav(input_path, output_path):
+    """Convert audio to WAV format compatible with Azure"""
     audio = AudioSegment.from_file(input_path)
     audio = audio.set_channels(1).set_frame_rate(16000)
     audio.export(output_path, format='wav')
 
 def recognize_speech_from_file(audio_path):
+    """Recognize speech from audio file using Azure"""
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
     audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
     speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
@@ -65,12 +70,12 @@ def recognize_speech_from_file(audio_path):
     if result.reason == speechsdk.ResultReason.RecognizedSpeech:
         return result.text
     elif result.reason == speechsdk.ResultReason.NoMatch:
-        return "No speech could be recognized."
+        return "No speech could be recognized"
     elif result.reason == speechsdk.ResultReason.Canceled:
         return f"Speech recognition canceled: {result.cancellation_details.reason}"
 
 def synthesize_speech(text, output_path):
-    #Converts text to AI-generated speech using Azure Text-to-Speech.
+    """Convert text to speech using Azure"""
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
     speech_config.speech_synthesis_voice_name = "en-US-JennyNeural"
 
@@ -82,8 +87,68 @@ def synthesize_speech(text, output_path):
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
         print(f"Text-to-Speech failed: {result.error_details}")
 
+def is_confirmation(text):
+    """Check if the text is a confirmation"""
+    confirmation_phrases = ['yes', 'correct', 'that is correct', 'that\'s correct', 'yeah', 'yep', 'right']
+    return any(phrase in text.lower() for phrase in confirmation_phrases)
 
-# Route for serving the React app
+def is_rejection(text):
+    """Check if the text is a rejection"""
+    rejection_phrases = ['no', 'that\'s wrong', 'incorrect', 'that is wrong','nah', 'nope', 'not correct']
+    return any(phrase in text.lower() for phrase in rejection_phrases)
+
+def process_confirmation(po_number):
+    """Process a confirmed PO number"""
+    po_exists = po_number in po_dict
+    details = get_po_details(po_number) if po_exists else None
+    
+    if po_exists:
+        ai_text = f"Found {po_number}. Here are the details."
+    else:
+        ai_text = f"PO {po_number} was not found in our system. Please try another PO number."
+    
+    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    
+    return {
+        "message": "Confirmation processed",
+        "po_number": po_number,
+        "po_exists": po_exists,
+        "details": details,
+        "show_confirm_options": False
+    }
+
+def process_rejection():
+    """Process a rejection of the detected PO number"""
+    ai_text = "Let's try again. Please provide the PO number."
+    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    
+    return {
+        "message": "Retry requested",
+        "po_number": None,
+        "show_confirm_options": False
+    }
+
+def process_new_po(transcript):
+    """Process a new PO number input"""
+    clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
+    po_number = clean_transcript.upper()
+    
+    # If no speech was recognized, handle that case
+    if transcript == "No speech could be recognized":
+        ai_text = "I didn't hear anything. Please try again."
+        show_confirm = False
+    else:
+        ai_text = f"I heard {transcript}, is that correct?"
+        show_confirm = True
+    
+    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    
+    return {
+        "message": "File processed successfully",
+        "po_number": transcript if transcript != "No speech could be recognized" else None,
+        "show_confirm_options": show_confirm
+    }
+
 @app.route('/')
 def serve_react():
     return send_file('static/index.html')
@@ -92,55 +157,43 @@ def serve_react():
 def serve_static(path):
     return send_file(f'static/{path}')
 
-
-# Route for handling the POST requests
 @app.route('/upload', methods=['POST'])
 def upload_audio():
+    global last_detected_po
+    
     # Getting the audio file from the request
     audio_file = request.files['audio']
-
-    # Save the original WebM file
-    original_path = os.path.join('data/audio', 'original.webm')
-    audio_file.save(original_path)
+    audio_file.save(ORIGINAL_PATH)
     
     # Convert WebM to WAV format that Azure likes
-    wav_path = os.path.join('data/audio', 'processed.wav')
-    convert_audio_to_wav(original_path, wav_path)
+    convert_audio_to_wav(ORIGINAL_PATH, WAV_PATH)
 
     # Transcribe speech
-    transcript = recognize_speech_from_file(wav_path)
+    transcript = recognize_speech_from_file(WAV_PATH)
     
-    # Cleaning up the transcript
-    clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
-    
-    # Convert to uppercase for matching against the PO dictionary
-    po_number = clean_transcript.upper()
-    
-    # Call the print_po_details function to print details to console
-    print_po_details(po_number)
-    
-    # Check if the PO number exists in our dictionary for AI response
-    if po_number in po_dict:
-        ai_text = f"I heard {transcript}. Item."
+    # Check if this is a confirmation, rejection, or new PO
+    if transcript == "No speech could be recognized" or transcript.startswith("Speech recognition canceled"):
+        response_data = process_new_po(transcript)
+    elif last_detected_po and is_confirmation(transcript):
+        po_number = last_detected_po
+        last_detected_po = None  # Reset for next input
+        response_data = process_confirmation(po_number)
+    elif last_detected_po and is_rejection(transcript):
+        last_detected_po = None  # Reset for next input
+        response_data = process_rejection()
     else:
-        ai_text = f"I heard {transcript}, is that correct?"
-
-    # Generate AI response
-    ai_audio_path = os.path.join('data/ai_audio', "ai_response.wav")
-    synthesize_speech(ai_text, ai_audio_path)
-
-    return jsonify({
-        "message": "File processed successfully",
-        "po_number": transcript,
-        "ai_audio": ai_audio_path
-    })
+        # It's a new PO number
+        clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
+        last_detected_po = clean_transcript.upper()
+        response_data = process_new_po(transcript)
+    
+    return jsonify(response_data)
 
 @app.route('/get-ai-audio', methods=['GET'])
 def get_ai_audio():
-    #Sends the AI-generated speech file back to the frontend.
-    ai_audio_path = os.path.join('data/ai_audio', "ai_response.wav")
-    return send_file(ai_audio_path, mimetype="audio/wav")
-
+    return send_file(AI_AUDIO_PATH, mimetype="audio/wav")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
+
+    
