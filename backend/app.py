@@ -7,6 +7,7 @@ from flask_cors import CORS
 import os
 from pydub import AudioSegment
 import azure.cognitiveservices.speech as speechsdk
+from collections import deque  # New import for queue functionality
 
 # Azure API keys
 speech_key = "G1qZMOd4MFuiqN6jwSPcStpRPgdl3zAQM0PxfFNXFIfXMq7v2ALbJQQJ99BBACYeBjFXJ3w3AAAYACOGorwn"
@@ -89,12 +90,12 @@ def synthesize_speech(text, output_path):
 
 def is_confirmation(text):
     """Check if the text is a confirmation"""
-    confirmation_phrases = ['yes', 'correct', 'that is correct', 'that\'s correct', 'yeah', 'yep', 'right']
+    confirmation_phrases = ['yes', 'correct', 'that is correct', "that's correct", 'yeah', 'yep', 'right']
     return any(phrase in text.lower() for phrase in confirmation_phrases)
 
 def is_rejection(text):
     """Check if the text is a rejection"""
-    rejection_phrases = ['no', 'that\'s wrong', 'incorrect', 'that is wrong','nah', 'nope', 'not correct']
+    rejection_phrases = ['no', "that's wrong", 'incorrect', 'that is wrong','nah', 'nope', 'not correct']
     return any(phrase in text.lower() for phrase in rejection_phrases)
 
 def process_confirmation(po_number):
@@ -192,6 +193,56 @@ def upload_audio():
 @app.route('/get-ai-audio', methods=['GET'])
 def get_ai_audio():
     return send_file(AI_AUDIO_PATH, mimetype="audio/wav")
+
+# ----------------------- New In-Memory Queue Functionality -----------------------
+# Initialize the in-memory queue for PO items
+queue = deque()
+
+# Function to enqueue all PO items from items.json
+def enqueue_po_items():
+    # Load items.json from disk (this path can be adjusted)
+    try:
+        with open("items.json", "r") as f:
+            po_items = json.load(f)
+    except Exception as e:
+        print(f"Error loading items.json: {e}")
+        return
+
+    for po, details in po_items.items():
+        for item_name, item_details in details["items"].items():
+            queue.append({
+                "po": po,
+                "item_name": item_name,
+                "item_number": item_details["item_number"],
+                "bin_location": item_details["bin_location"]
+            })
+
+# Function to dequeue an item from the in-memory queue
+def dequeue_item():
+    if queue:
+        return queue.popleft()
+    return None
+
+# Endpoint to enqueue all PO items into the queue
+@app.route("/enqueue", methods=["POST"])
+def enqueue():
+    enqueue_po_items()
+    return jsonify({"message": "PO items enqueued", "queue": list(queue)})
+
+# Endpoint to dequeue the next PO item from the queue
+@app.route("/dequeue", methods=["POST"])
+def dequeue():
+    item = dequeue_item()
+    if item:
+        return jsonify({"message": "Item dequeued", "item": item})
+    return jsonify({"message": "Queue is empty"})
+
+# Endpoint to view the current queue state
+@app.route("/queue", methods=["GET"])
+def get_queue():
+    return jsonify({"queue": list(queue)})
+
+# -----------------------------------------------------------------------------
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
