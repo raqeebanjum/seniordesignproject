@@ -100,25 +100,33 @@ def is_rejection(text):
     return any(phrase in text.lower() for phrase in rejection_phrases)
 
 def process_confirmation(po_number):
-    """Process a confirmed PO number"""
+    """Process a confirmed PO number and give bin location if available."""
     po_exists = po_number in po_dict
     details = get_po_details(po_number) if po_exists else None
-    
+    bin_location = None  # default
+
     if po_exists:
-        ai_text = f"Found {po_number}. Here are the details."
         enqueue_po_items(po_number)
+        if queue:
+            next_item = queue[0]
+            bin_location = next_item["bin_location"]
+            ai_text = f"Found {po_number}. Your first bin location is {bin_location}. Proceed there now."
+        else:
+            ai_text = f"Found {po_number}, but there are no items in the queue."
     else:
         ai_text = f"PO {po_number} was not found in our system. Please try another PO number."
-    
+
     synthesize_speech(ai_text, AI_AUDIO_PATH)
-    
+
     return {
-        "message": "Confirmation processed",
+        "message": ai_text,
         "po_number": po_number,
         "po_exists": po_exists,
         "details": details,
-        "show_confirm_options": False
+        "show_confirm_options": False,
+        "bin_location": bin_location  # Will be None if not available
     }
+
 def process_rejection():
     """Process a rejection of the detected PO number"""
     ai_text = "Let's try again. Please provide the PO number."
