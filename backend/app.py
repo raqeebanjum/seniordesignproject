@@ -35,6 +35,7 @@ except FileNotFoundError:
 except json.JSONDecodeError:
     print("❌ Error: Invalid JSON format in items.json.")
 
+
 # File paths
 WAV_PATH = os.path.join('data/audio', 'processed.wav')
 ORIGINAL_PATH = os.path.join('data/audio', 'original.webm')
@@ -105,6 +106,7 @@ def process_confirmation(po_number):
     
     if po_exists:
         ai_text = f"Found {po_number}. Here are the details."
+        enqueue_po_items(po_number)
     else:
         ai_text = f"PO {po_number} was not found in our system. Please try another PO number."
     
@@ -117,7 +119,6 @@ def process_confirmation(po_number):
         "details": details,
         "show_confirm_options": False
     }
-
 def process_rejection():
     """Process a rejection of the detected PO number"""
     ai_text = "Let's try again. Please provide the PO number."
@@ -195,28 +196,40 @@ def get_ai_audio():
     return send_file(AI_AUDIO_PATH, mimetype="audio/wav")
 
 # ----------------------- New In-Memory Queue Functionality -----------------------
-# Initialize the in-memory queue for PO items
-queue = deque()
-
+# Initialize the in-memory queue for PO itemsqueue = deque()
 # Function to enqueue all PO items from items.json
-def enqueue_po_items():
-    # Load items.json from disk (this path can be adjusted)
-    try:
-        with open("items.json", "r") as f:
-            po_items = json.load(f)
-    except Exception as e:
-        print(f"Error loading items.json: {e}")
+queue = deque()
+def enqueue_po_items(po_number):
+    global queue
+    queue.clear()
+
+    if po_number not in po_dict:
+        print(f"❌ PO Number '{po_number}' not found.")
         return
 
-    for po, details in po_items.items():
-        for item_name, item_details in details["items"].items():
-            queue.append({
-                "po": po,
-                "item_name": item_name,
-                "item_number": item_details["item_number"],
-                "bin_location": item_details["bin_location"]
-            })
+    items = po_dict[po_number].get("items", {})
 
+    if not items:
+        print(f"⚠️ PO {po_number} has no items to process.")
+        return
+
+    for item_name, details in items.items():
+        queue.append({
+            "name": item_name,
+            "item_number": details["item_number"],
+            "bin_location": details["bin_location"]
+        })
+
+    print(f"✅ Queue successfully populated for PO {po_number}:")
+    for i, item in enumerate(queue, 1):
+        print(f"{i}. {item['name']} (Item: {item['item_number']}, Bin: {item['bin_location']})")
+
+
+#po_number = process_confirmation()  
+#enqueue_po_items(po_number)
+
+
+'''
 # Function to dequeue an item from the in-memory queue
 def dequeue_item():
     if queue:
@@ -243,7 +256,7 @@ def get_queue():
     return jsonify({"queue": list(queue)})
 
 # -----------------------------------------------------------------------------
-
+'''
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
 
