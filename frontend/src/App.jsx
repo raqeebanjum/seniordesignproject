@@ -27,14 +27,47 @@ const AudioControls = ({ isRecording, startRecording, stopRecording, resetApp, h
 
 // Component for displaying PO details
 const PODetails = ({ details }) => {
-  return details ? (
-    <div className="card bg-base-200 shadow-lg mt-4 max-w-lg w-full">
+  if (!details) return null;
+
+  const parsed = details.split('\n').filter(line => line.trim() !== '');
+  const poNumber = parsed[0].replace('PO Number: ', '');
+  const items = [];
+
+  for (let i = 2; i < parsed.length; i += 3) {
+    items.push({
+      name: parsed[i].replace('- ', ''),
+      itemNumber: parsed[i + 1].replace('  Item Number: ', ''),
+      binLocation: parsed[i + 2].replace('  Bin Location: ', ''),
+    });
+  }
+
+  return (
+    <div className="card bg-base-200 shadow-lg mt-4 w-full max-w-2xl">
       <div className="card-body">
-        <h2 className="card-title">PO Details:</h2>
-        <pre className="whitespace-pre-line text-sm">{details}</pre>
+        <h2 className="card-title mb-2">PO Number: {poNumber}</h2>
+        <div className="overflow-x-auto">
+          <table className="table table-zebra w-full text-sm">
+            <thead>
+              <tr>
+                <th>Item Name</th>
+                <th>Item Number</th>
+                <th>Bin Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((item, idx) => (
+                <tr key={idx}>
+                  <td>{item.name}</td>
+                  <td>{item.itemNumber}</td>
+                  <td>{item.binLocation}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
-  ) : null;
+  );
 };
 
 // Main Audio Player component
