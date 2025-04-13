@@ -100,25 +100,43 @@ def is_rejection(text):
     return any(phrase in text.lower() for phrase in rejection_phrases)
 
 def process_confirmation(po_number):
-    """Process a confirmed PO number"""
+    global current_state, current_item, current_po_number
+    
     po_exists = po_number in po_dict
     details = get_po_details(po_number) if po_exists else None
-    
+    bin_location = None  # default
+
     if po_exists:
-        ai_text = f"Found {po_number}. Here are the details."
+        # This is for tracking which PO number we're currently working with
+        current_po_number = po_number
+        
+        # Enqueue items
         enqueue_po_items(po_number)
+        if queue:
+            current_item = queue[0]
+            bin_location = current_item["bin_location"]
+            current_state = 'awaiting_arrival'
+            ai_text = (
+                f"Found {po_number}. "
+                f"Your first bin location is {bin_location}. "
+                "Say 'I'm there' when you arrive to get placement instructions."
+            )
+        else:
+            ai_text = f"Found {po_number}, but there are no items in the queue."
     else:
         ai_text = f"PO {po_number} was not found in our system. Please try another PO number."
-    
+
     synthesize_speech(ai_text, AI_AUDIO_PATH)
-    
+
     return {
-        "message": "Confirmation processed",
+        "message": ai_text,
         "po_number": po_number,
         "po_exists": po_exists,
         "details": details,
-        "show_confirm_options": False
+        "show_confirm_options": False,
+        "bin_location": bin_location
     }
+
 def process_rejection():
     """Process a rejection of the detected PO number"""
     ai_text = "Let's try again. Please provide the PO number."
@@ -128,6 +146,38 @@ def process_rejection():
         "message": "Retry requested",
         "po_number": None,
         "show_confirm_options": False
+    }
+
+# this function is for whenever we're actually placing the items
+def handle_placement():
+    global current_state, current_item, current_po_number
+    
+    placed_item = current_item  # Just to reference it in our response
+    
+    # Dequeue the item we just placed
+    dequeue_item()
+    
+    # If more items remain, direct the user to the next bin
+    if queue:
+        current_item = queue[0]
+        ai_text = (
+            f" {placed_item['name']} Placed. "
+            f"Next, go to bin location {current_item['bin_location']} "
+            f"for {current_item['name']} (Item {current_item['item_number']}). "
+            "Say 'I'm there' when you arrive."
+        )
+        current_state = 'awaiting_arrival'
+    else:
+        # No more items: we’re done with this PO
+        ai_text = f"All items in {current_po_number} have been received. Good Boy!"
+        current_state = 'completed'
+        current_item = None
+        current_po_number = None
+
+    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    return {
+        "message": ai_text,
+        "next_action": "completed" if not queue else "go_to_next_bin"
     }
 
 def process_new_po(transcript):
@@ -183,6 +233,10 @@ def upload_audio():
     elif last_detected_po and is_rejection(transcript):
         last_detected_po = None  # Reset for next input
         response_data = process_rejection()
+    elif current_state == 'awaiting_arrival' and ( "i'm there" in transcript.lower() or "i am there" in transcript.lower() or "im there" in transcript.lower() or "i’m there" in transcript.lower()):
+        response_data = handle_arrival()
+    elif current_state == 'awaiting_placement' and ("i've placed it" in transcript.lower() or "i placed it" in transcript.lower() or "i have placed it" in transcript.lower() ):
+        response_data = handle_placement()
     else:
         # It's a new PO number
         clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
@@ -196,9 +250,24 @@ def get_ai_audio():
     return send_file(AI_AUDIO_PATH, mimetype="audio/wav")
 
 # ----------------------- New In-Memory Queue Functionality -----------------------
-# Initialize the in-memory queue for PO itemsqueue = deque()
-# Function to enqueue all PO items from items.json
+# Initialize the in-memory queue for PO items
 queue = deque()
+# Track interaction state: 'awaiting_arrival', 'awaiting_placement', 'completed'
+current_state = 'awaiting_arrival'
+current_item = None
+current_po_number = None
+
+# Uncommented queue handling endpoints
+
+
+def get_next_item():
+    global current_item
+    if queue:
+        current_item = queue[0]
+        return current_item
+    return None
+
+# Function to enqueue all PO items from items.json
 def enqueue_po_items(po_number):
     global queue
     queue.clear()
@@ -229,7 +298,6 @@ def enqueue_po_items(po_number):
 #enqueue_po_items(po_number)
 
 
-'''
 # Function to dequeue an item from the in-memory queue
 def dequeue_item():
     if queue:
@@ -255,8 +323,26 @@ def dequeue():
 def get_queue():
     return jsonify({"queue": list(queue)})
 
+# Uncommented queue handling endpoints
+def handle_arrival():
+    global current_state, current_item
+    
+    if current_state == 'awaiting_arrival' and current_item:
+        ai_text = f"Place {current_item['name']} (Item {current_item['item_number']}) in bin {current_item['bin_location']}. Say 'I\'ve placed it' when finished."
+        current_state = 'awaiting_placement'
+    else:
+        ai_text = "Please proceed to the next bin location."
+    
+    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    return {
+        "message": ai_text,
+        "item": current_item,
+        "next_action": "confirm_placement"
+    }
+
+
+
 # -----------------------------------------------------------------------------
-'''
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5001, debug=True)
 
