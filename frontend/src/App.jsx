@@ -212,7 +212,7 @@ function App() {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4">
-      <h1 className="text-2xl font-bold mb-4">PO Lookup System</h1>
+      <h1 className="text-2xl font-bold mb-4">Receiving System</h1>
       
       <div className="text-lg font-medium mb-2">{statusMessage}</div>
       
