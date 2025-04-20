@@ -123,8 +123,10 @@ def process_confirmation(po_number):
             )
         else:
             ai_text = f"Found {po_number}, but there are no items in the queue."
+            current_state = 'awaiting_po'  # Reset state if no items
     else:
         ai_text = f"PO {po_number} was not found in our system. Please try another PO number."
+        current_state = 'awaiting_po'  # Reset state if PO not found
 
     synthesize_speech(ai_text, AI_AUDIO_PATH)
 
@@ -148,6 +150,33 @@ def process_rejection():
         "show_confirm_options": False
     }
 
+# This is a helper function that's for whenever the user says something that isn't expected
+def handle_unexpected_input(transcript, current_state):
+    
+    if current_state == 'awaiting_po':
+        ai_text = "I'm sorry, I didn't understand that. Please provide a valid PO number."
+    
+    elif current_state == 'awaiting_arrival':
+        ai_text = "I'm sorry, I didn't understand that. Please say 'I'm there' when you arrive at the bin location."
+    
+    elif current_state == 'awaiting_placement':
+        ai_text = "I'm sorry, I didn't understand that. Please say 'I've placed it' once you've put the item in the bin."
+    
+    elif current_state == 'completed':
+        ai_text = "I'm sorry, I didn't understand that. Please provide a PO number to start a new task."
+    
+    else:
+        # Default fallback for unknown states
+        ai_text = "I'm sorry, I didn't understand that. Please try again."
+    
+    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    
+    return {
+        "message": ai_text,
+        "understood": False,
+        "show_confirm_options": False
+    }
+
 # this function is for whenever we're actually placing the items
 def handle_placement():
     global current_state, current_item, current_po_number
@@ -168,9 +197,9 @@ def handle_placement():
         )
         current_state = 'awaiting_arrival'
     else:
-        # No more items: we’re done with this PO
+        # No more items: we're done with this PO
         ai_text = f"All items in {current_po_number} have been received. Good Boy!"
-        current_state = 'completed'
+        current_state = 'awaiting_po'
         current_item = None
         current_po_number = None
 
@@ -209,9 +238,12 @@ def serve_react():
 def serve_static(path):
     return send_file(f'static/{path}')
 
+
+
+
 @app.route('/upload', methods=['POST'])
 def upload_audio():
-    global last_detected_po
+    global last_detected_po, current_state
     
     # Getting the audio file from the request
     audio_file = request.files['audio']
@@ -226,24 +258,47 @@ def upload_audio():
     # Check if this is a confirmation, rejection, or new PO
     if transcript == "No speech could be recognized" or transcript.startswith("Speech recognition canceled"):
         response_data = process_new_po(transcript)
+    
     elif last_detected_po and is_confirmation(transcript):
         po_number = last_detected_po
         last_detected_po = None  # Reset for next input
         response_data = process_confirmation(po_number)
+    
     elif last_detected_po and is_rejection(transcript):
         last_detected_po = None  # Reset for next input
         response_data = process_rejection()
-    elif current_state == 'awaiting_arrival' and ( "i'm there" in transcript.lower() or "i am there" in transcript.lower() or "im there" in transcript.lower() or "i’m there" in transcript.lower()):
+    
+    elif current_state == 'awaiting_arrival' and any(phrase in transcript.lower() for phrase in ["i'm there", "i am there", "im there", "i'm there"]):
         response_data = handle_arrival()
-    elif current_state == 'awaiting_placement' and ("i've placed it" in transcript.lower() or "i placed it" in transcript.lower() or "i have placed it" in transcript.lower() ):
+    
+    elif current_state == 'awaiting_arrival':
+        # User said something else when we were expecting "I'm there"
+        response_data = handle_unexpected_input(transcript, current_state)
+    
+    elif current_state == 'awaiting_placement' and any(phrase in transcript.lower() for phrase in ["i've placed it", "i placed it", "i have placed it"]):
         response_data = handle_placement()
+    
+    elif current_state == 'awaiting_placement':
+        # User said something else when we were expecting "I've placed it"
+        response_data = handle_unexpected_input(transcript, current_state)
+    
+    elif current_state == 'completed' or current_state == 'awaiting_po':
+        # We're expecting a new PO number
+        clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
+        last_detected_po = clean_transcript.upper()
+        response_data = process_new_po(transcript)
+    
     else:
-        # It's a new PO number
+        # Default case - assume it's a PO number
         clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
         last_detected_po = clean_transcript.upper()
         response_data = process_new_po(transcript)
     
     return jsonify(response_data)
+
+
+
+
 
 @app.route('/get-ai-audio', methods=['GET'])
 def get_ai_audio():
@@ -253,7 +308,7 @@ def get_ai_audio():
 # Initialize the in-memory queue for PO items
 queue = deque()
 # Track interaction state: 'awaiting_arrival', 'awaiting_placement', 'completed'
-current_state = 'awaiting_arrival'
+current_state = 'awaiting_po'
 current_item = None
 current_po_number = None
 
@@ -303,6 +358,8 @@ def dequeue_item():
     if queue:
         return queue.popleft()
     return None
+
+
 
 # Endpoint to enqueue all PO items into the queue
 @app.route("/enqueue", methods=["POST"])
