@@ -64,7 +64,7 @@ def convert_audio_to_wav(input_path, output_path):
 
 def recognize_speech_from_file(audio_path):
     """Recognize speech and detect language from audio file using Azure"""
-    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-US", "en-US"])
+    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-US", "es-US"])
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
     audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
 
@@ -448,7 +448,7 @@ def enqueue():
     data = request.get_json()
     po_number = data.get("po_number")
     enqueue_po_items(po_number)
-    return jsonify({"message": "PO items enqueued", "queue": list(queue)}
+    return jsonify({"message": "PO items enqueued", "queue": list(queue)})
 
 # Endpoint to dequeue the next PO item from the queue
 @app.route("/dequeue", methods=["POST"])
