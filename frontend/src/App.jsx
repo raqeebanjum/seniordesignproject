@@ -1,24 +1,59 @@
+// import react hooks
 import { useState, useRef, useEffect } from 'react';
 
+// Translation strings
+const translations = {
+  "en-US": {
+    recording: "Recording...",
+    processing: "Processing audio...",
+    error: "Error processing audio. Please try again.",
+    ready: "Ready to record",
+    retry: "Let's try again. Please record PO number.",
+    notHeard: "I couldn't hear anything. Please try again.",
+    foundPO: (po) => `Found PO: ${po}`,
+    notFound: (po) => `PO ${po} not found`,
+    confirmPrompt: (po) => `Detected: ${po}. Please say \"yes\" to confirm or \"no\" to try again.`,
+    reset: "Reset",
+    recordBtn: "Record Voice Input",
+    stopBtn: "Stop Recording"
+  },
+  "es-ES": {
+    recording: "Grabando...",
+    processing: "Procesando audio...",
+    error: "Error al procesar el audio. Por favor, inténtalo de nuevo.",
+    ready: "Listo para grabar",
+    retry: "Intentémoslo de nuevo. Por favor graba el número de orden.",
+    notHeard: "No escuché nada. Por favor, inténtalo de nuevo.",
+    foundPO: (po) => `Orden de compra encontrada: ${po}`,
+    notFound: (po) => `Orden ${po} no encontrada`,
+    confirmPrompt: (po) => `¿Dijiste ${po}? Di \"sí\" para confirmar o \"no\" para intentarlo de nuevo.`,
+    reset: "Reiniciar",
+    recordBtn: "Grabar entrada de voz",
+    stopBtn: "Detener grabación"
+  }
+};
+
+// Helper to get translation object by language
+const getT = (lang) => translations[lang] || translations["en-US"];
+
 // Component for the audio controls
-const AudioControls = ({ isRecording, startRecording, stopRecording, resetApp, hasData }) => {
+const AudioControls = ({ isRecording, startRecording, stopRecording, resetApp, hasData, detectedLang }) => {
+  const t = getT(detectedLang);
   return (
     <div className="flex gap-4 mb-4">
       <button 
-        className={`btn ${isRecording 
-          ? 'btn-error' 
-          : 'btn-primary'}`}
+        className={`btn ${isRecording ? 'btn-error' : 'btn-primary'}`}
         onClick={isRecording ? stopRecording : startRecording}
       >
-        {isRecording ? 'Stop Recording' : 'Record Voice Input'}
+        {isRecording ? t.stopBtn : t.recordBtn}
       </button>
-      
+
       {!isRecording && hasData && (
         <button 
           className="btn btn-neutral"
           onClick={resetApp}
         >
-          Reset
+          {t.reset}
         </button>
       )}
     </div>
@@ -84,6 +119,8 @@ const AudioPlayer = ({ url, audioRef }) => {
 
 // Main App component
 function App() {
+  const [detectedLang, setDetectedLang] = useState("en-US");
+
   // State management with custom hook
   const useAudioRecorder = () => {
     const [isRecording, setIsRecording] = useState(false);
@@ -92,14 +129,14 @@ function App() {
     const mediaRecorderRef = useRef(null);
     const audioChunksRef = useRef([]);
     const audioRef = useRef(null);
-    
+
     // Reset audio when a new one is loaded
     useEffect(() => {
       if (audioURL && audioRef.current) {
         audioRef.current.load();
       }
     }, [audioURL]);
-    
+
     return {
       isRecording, setIsRecording,
       audioURL, setAudioURL,
@@ -107,14 +144,14 @@ function App() {
       mediaRecorderRef, audioChunksRef, audioRef
     };
   };
-  
+
   const {
     isRecording, setIsRecording,
     audioURL, setAudioURL,
     statusMessage, setStatusMessage,
     mediaRecorderRef, audioChunksRef, audioRef
   } = useAudioRecorder();
-  
+
   // PO states
   const [detectedPO, setDetectedPO] = useState(null);
   const [showConfirmOptions, setShowConfirmOptions] = useState(false);
@@ -122,10 +159,10 @@ function App() {
 
   // function to start recording
   const startRecording = () => {
-    // Reset states before starting new recording
+    const t = getT(detectedLang);
     audioChunksRef.current = [];
-    setStatusMessage("Recording...");
-    
+    setStatusMessage(t.recording);
+
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then(stream => {
         mediaRecorderRef.current = new MediaRecorder(stream, {
@@ -141,56 +178,57 @@ function App() {
 
   // function to stop recording and process audio
   const stopRecording = () => {
+    const t = getT(detectedLang);
     mediaRecorderRef.current.stop();
     setIsRecording(false);
-    setStatusMessage("Processing audio...");
-    
-    // when the recording stops, create a blob from the audio chunks
+    setStatusMessage(t.processing);
+
     mediaRecorderRef.current.onstop = async () => {
       const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
       const formData = new FormData();
       formData.append('audio', audioBlob, 'recording.webm');
 
       try {
-        // send the audio blob to the backend
         const response = await fetch('/upload', {
           method: 'POST',
           body: formData
         });
         const data = await response.json();
-        
         updateUIBasedOnResponse(data);
       } catch (error) {
         console.error("Error processing audio:", error);
-        setStatusMessage("Error processing audio. Please try again.");
+        setStatusMessage(t.error);
       }
     };
   };
 
   // Helper to update UI based on backend response
   const updateUIBasedOnResponse = async (data) => {
-    // Update states based on server response
+    // 1. Always update language FIRST
+    const lang = data.detected_lang || detectedLang;
+    setDetectedLang(lang);
+    const t = getT(lang); // now this will match
+  
+    // 2. Then update message state using new language
     if (data.details) {
-      // This is a confirmation response with PO details
       setPoDetails(data.details);
       setDetectedPO(data.po_number);
       setShowConfirmOptions(false);
-      setStatusMessage(data.po_exists ? `Found PO: ${data.po_number}` : `PO ${data.po_number} not found`);
+      setStatusMessage(
+        data.po_exists ? t.foundPO(data.po_number) : t.notFound(data.po_number)
+      );
     } else if (data.show_confirm_options) {
-      // This is for confirmation
       setDetectedPO(data.po_number);
       setShowConfirmOptions(true);
-      setStatusMessage(`Detected: ${data.po_number}. Please say "yes" to confirm or "no" to try again.`);
+      setStatusMessage(t.confirmPrompt(data.po_number)); // ✅ now uses updated lang
     } else if (data.message === "Retry requested") {
-      // This is when user said "No" via voice
       resetApp();
-      setStatusMessage("Let's try again. Please record PO number.");
+      setStatusMessage(t.retry);
     } else if (data.message === "No voice recognized") {
-      // This is when no voice is recognized
-      setStatusMessage("I couldn't hear anything. Please try again.");
+      setStatusMessage(t.notHeard);
     }
-
-    // Fetch and play AI-generated speech file
+  
+    // Play AI audio
     try {
       const audioResponse = await fetch("/get-ai-audio");
       const audioBlob = await audioResponse.blob();
@@ -199,23 +237,24 @@ function App() {
     } catch (error) {
       console.error("Error fetching audio:", error);
     }
-  };
+  };  
 
   // Reset the app state for a new recording
   const resetApp = () => {
+    const t = getT(detectedLang);
     setDetectedPO(null);
     setShowConfirmOptions(false);
     setPoDetails(null);
-    setStatusMessage("Ready to record");
+    setStatusMessage(t.ready);
     setAudioURL(null);
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4">
       <h1 className="text-2xl font-bold mb-4">Receiving System</h1>
-      
+
       <div className="text-lg font-medium mb-2">{statusMessage}</div>
-      
+
       {/* Main control buttons */}
       <AudioControls 
         isRecording={isRecording}
@@ -223,6 +262,7 @@ function App() {
         stopRecording={stopRecording}
         resetApp={resetApp}
         hasData={detectedPO || poDetails}
+        detectedLang={detectedLang}
       />
 
       {/* PO Details display */}
