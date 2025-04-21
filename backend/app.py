@@ -64,7 +64,7 @@ def convert_audio_to_wav(input_path, output_path):
 
 def recognize_speech_from_file(audio_path):
     """Recognize speech and detect language from audio file using Azure"""
-    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["en-US", "es-ES"])
+    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["en-US", "es-US"])
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
     audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
 
@@ -88,8 +88,8 @@ def recognize_speech_from_file(audio_path):
 def synthesize_speech(text, output_path, language="en-US"):
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
 
-    if language == "es-ES":
-        speech_config.speech_synthesis_voice_name = "es-ES-ElviraNeural"
+    if language == "es-US":
+        speech_config.speech_synthesis_voice_name = "es-US-ElviraNeural"
     else:
         speech_config.speech_synthesis_voice_name = "en-US-JennyNeural"
 
@@ -102,12 +102,12 @@ def synthesize_speech(text, output_path, language="en-US"):
         print(f"Text-to-Speech failed: {result.error_details}")
 
 def is_arrival(text, lang):
-    if lang == "es-ES":
+    if lang == "es-US":
         return any(p in text.lower() for p in ["ya llegué", "he llegado", "llegué"])
     return any(p in text.lower() for p in ["i'm there", "i am there", "im there"])
 
 def is_placement(text, lang):
-    if lang == "es-ES":
+    if lang == "es-US":
         return any(p in text.lower() for p in ["ya lo coloqué", "ya lo puse", "coloqué"])
     return any(p in text.lower() for p in ["i've placed it", "i placed it", "i have placed it"])
 
@@ -118,7 +118,7 @@ def is_confirmation(text, language="en-US"):
         "en-US": [
             'yes', 'correct', 'that is correct', "that's correct", 'yeah', 'yep', 'right'
         ],
-        "es-ES": [
+        "es-US": [
             'sí', 'si', 'es correcto', 'eso es correcto', 'claro', 'afirmativo'
         ]
     }
@@ -132,7 +132,7 @@ def is_rejection(text, language="en-US"):
         "en-US": [
             'no', "that's wrong", 'incorrect', 'that is wrong', 'nah', 'nope', 'not correct'
         ],
-        "es-ES": [
+        "es-US": [
             'no', 'no es correcto', 'eso es incorrecto', 'incorrecto', 'negativo'
         ]
     }
@@ -157,7 +157,7 @@ def process_confirmation(po_number, language):
             current_item = queue[0]
             bin_location = current_item["bin_location"]
             current_state = 'awaiting_arrival'
-            if language == "es-ES":
+            if language == "es-US":
                 ai_text = (
                     f"PO {po_number} encontrado. "
                     f"Tu primera ubicación del contenedor es {bin_location}. "
@@ -170,7 +170,7 @@ def process_confirmation(po_number, language):
                     "Say 'I'm there' when you arrive to get placement instructions."
                 )
         else:
-            if language == "es-ES":
+            if language == "es-US":
                 ai_text = f"PO {po_number} encontrado, pero no hay artículos en la cola."
             else:
                 ai_text = f"Found {po_number}, but there are no items in the queue."
@@ -192,7 +192,7 @@ def process_confirmation(po_number, language):
 
 def process_rejection(language):
     """Process a rejection of the detected PO number"""
-    if language == 'es-ES':
+    if language == 'es-US':
         ai_text = "Intentémoslo de nuevo. Por favor proporcione el número de orden de compra."
     else:
         ai_text = "Let's try again. Please provide the PO number."
@@ -208,32 +208,32 @@ def process_rejection(language):
 def handle_unexpected_input(transcript, current_state, language):
     
     if current_state == 'awaiting_po':
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = "Lo siento, no entendí eso. Por favor proporcione un número de orden de compra válido."
         else:
             ai_text = "I'm sorry, I didn't understand that. Please provide a valid PO number."
     
     elif current_state == 'awaiting_arrival':
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = "Lo siento, no entendí eso. Por favor diga 'Ya llegué' cuando llegue a la ubicación del contenedor."
         else:
             ai_text = "I'm sorry, I didn't understand that. Please say 'I'm there' when you arrive at the bin location."
     
     elif current_state == 'awaiting_placement':
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = "Lo siento, no entendí eso. Por favor diga 'Ya lo puse' cuando haya colocado el artículo en el contenedor."
         else:
             ai_text = "I'm sorry, I didn't understand that. Please say 'I've placed it' once you've put the item in the bin."
     
     elif current_state == 'completed':
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = "Lo siento, no entendí eso. Por favor proporcione un número de orden de compra para comenzar una nueva tarea."
         else:
             ai_text = "I'm sorry, I didn't understand that. Please provide a PO number to start a new task."
     
     else:
         # Default fallback for unknown states
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = "Lo siento, no entendí eso. Por favor, inténtalo de nuevo."
         else:
             ai_text = "I'm sorry, I didn't understand that. Please try again."
@@ -258,7 +258,7 @@ def handle_placement(language):
     # If more items remain, direct the user to the next bin
     if queue:
         current_item = queue[0]
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = (
                 f"{placed_item['name']} colocado. "
                 f"Ahora ve al contenedor {current_item['bin_location']} "
@@ -275,7 +275,7 @@ def handle_placement(language):
         current_state = 'awaiting_arrival'
     else:
         # No more items: we're done with this PO
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = f"Todos los artículos del {current_po_number} han sido recibidos. ¡Buen chico!"
         else:
             ai_text = f"All items in {current_po_number} have been received. Good Boy!"
@@ -296,13 +296,13 @@ def process_new_po(transcript, language):
     
     # If no speech was recognized, handle that case
     if transcript == "No speech could be recognized":
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = "No escuché nada. Por favor, inténtalo de nuevo."
         else:
             ai_text = "I didn't hear anything. Please try again."
         show_confirm = False
     else:
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = f"Escuché {transcript}. ¿Es correcto?"
         else:
             ai_text = f"I heard {transcript}, is that correct?"
@@ -466,13 +466,13 @@ def handle_arrival(language):
     global current_state, current_item
     
     if current_state == 'awaiting_arrival' and current_item:
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = f"Coloca {current_item['name']} (Artículo {current_item['item_number']}) en el contenedor {current_item['bin_location']}. Di 'ya lo coloqué' cuando termines."
         else:
             ai_text = f"Place {current_item['name']} (Item {current_item['item_number']}) in bin {current_item['bin_location']}. Say 'I\'ve placed it' when finished."
         current_state = 'awaiting_placement'
     else:
-        if language == "es-ES":
+        if language == "es-US":
             ai_text = "Por favor, procede a la siguiente ubicación del contenedor."
         else:
             ai_text = "Please proceed to the next bin location."

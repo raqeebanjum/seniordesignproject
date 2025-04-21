@@ -17,7 +17,7 @@ const translations = {
     recordBtn: "Record Voice Input",
     stopBtn: "Stop Recording"
   },
-  "es-ES": {
+  "es-US": {
     recording: "Grabando...",
     processing: "Procesando audio...",
     error: "Error al procesar el audio. Por favor, inténtalo de nuevo.",
