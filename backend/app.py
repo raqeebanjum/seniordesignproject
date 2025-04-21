@@ -64,7 +64,7 @@ def convert_audio_to_wav(input_path, output_path):
 
 def recognize_speech_from_file(audio_path):
     """Recognize speech and detect language from audio file using Azure"""
-    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["en-US", "es-US"])
+    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-US", "en-US"])
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
     audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
 
@@ -75,7 +75,7 @@ def recognize_speech_from_file(audio_path):
 
     # Get the detected language from the result
     detected_lang = result.properties.get(speechsdk.PropertyId.SpeechServiceConnection_AutoDetectSourceLanguageResult)
-    detected_lang = detected_lang or "en-US"
+    detected_lang = detected_lang or "es-US"
 
     if result.reason == speechsdk.ResultReason.RecognizedSpeech:
         return result.text, detected_lang
@@ -85,7 +85,7 @@ def recognize_speech_from_file(audio_path):
         return f"Speech recognition canceled: {result.cancellation_details.reason}", detected_lang
 
 
-def synthesize_speech(text, output_path, language="en-US"):
+def synthesize_speech(text, output_path, language="es-US"):
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
 
     if language == "es-US":
@@ -112,7 +112,7 @@ def is_placement(text, lang):
     return any(p in text.lower() for p in ["i've placed it", "i placed it", "i have placed it"])
 
 
-def is_confirmation(text, language="en-US"):
+def is_confirmation(text, language):
     """Check if the text is a confirmation, localized by language"""
     confirmations = {
         "en-US": [
@@ -123,10 +123,10 @@ def is_confirmation(text, language="en-US"):
         ]
     }
 
-    phrases = confirmations.get(language, confirmations["en-US"])
+    phrases = confirmations.get(language, confirmations["es-US"])
     return any(phrase in text.lower() for phrase in phrases)
 
-def is_rejection(text, language="en-US"):
+def is_rejection(text, language):
     """Check if the text is a rejection, localized by language"""
     rejections = {
         "en-US": [
@@ -137,7 +137,7 @@ def is_rejection(text, language="en-US"):
         ]
     }
 
-    phrases = rejections.get(language, rejections["en-US"])
+    phrases = rejections.get(language, rejections["es-US"])
     return any(phrase in text.lower() for phrase in phrases)
 
 def process_confirmation(po_number, language):
@@ -445,8 +445,10 @@ def dequeue_item():
 # Endpoint to enqueue all PO items into the queue
 @app.route("/enqueue", methods=["POST"])
 def enqueue():
-    enqueue_po_items()
-    return jsonify({"message": "PO items enqueued", "queue": list(queue)})
+    data = request.get_json()
+    po_number = data.get("po_number")
+    enqueue_po_items(po_number)
+    return jsonify({"message": "PO items enqueued", "queue": list(queue)}
 
 # Endpoint to dequeue the next PO item from the queue
 @app.route("/dequeue", methods=["POST"])

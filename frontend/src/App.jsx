@@ -119,7 +119,7 @@ const AudioPlayer = ({ url, audioRef }) => {
 
 // Main App component
 function App() {
-  const [detectedLang, setDetectedLang] = useState("en-US");
+  const [detectedLang, setDetectedLang] = useState("es-US");
 
   // State management with custom hook
   const useAudioRecorder = () => {
