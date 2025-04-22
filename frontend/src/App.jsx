@@ -119,7 +119,7 @@ const AudioPlayer = ({ url, audioRef }) => {
 
 // Main App component
 function App() {
-  const [detectedLang, setDetectedLang] = useState("es-US");
+  const [detectedLang, setDetectedLang] = useState("en-US");
 
   // State management with custom hook
   const useAudioRecorder = () => {
@@ -193,8 +193,14 @@ function App() {
           method: 'POST',
           body: formData
         });
-        const data = await response.json();
-        updateUIBasedOnResponse(data);
+        
+        const contentType = response.headers.get("content-type");
+        if (contentType && contentType.includes("application/json")) {
+          const data = await response.json();
+          updateUIBasedOnResponse(data);
+        } else {
+          throw new Error("Received non-JSON response");
+        }
       } catch (error) {
         console.error("Error processing audio:", error);
         setStatusMessage(t.error);
@@ -205,9 +211,18 @@ function App() {
   // Helper to update UI based on backend response
   const updateUIBasedOnResponse = async (data) => {
     // 1. Always update language FIRST
-    const lang = data.detected_lang || detectedLang;
-    setDetectedLang(lang);
-    const t = getT(lang); // now this will match
+    let lang = detectedLang;
+
+    // Only update language if it's not a failure message
+    if (
+      data.detected_lang &&
+      !(data.po_number === null && data.message === "Retry requested")
+    ) {
+      lang = data.detected_lang;
+      setDetectedLang(lang);
+    }
+    
+    const t = getT(lang);
   
     // 2. Then update message state using new language
     if (data.details) {
@@ -220,7 +235,7 @@ function App() {
     } else if (data.show_confirm_options) {
       setDetectedPO(data.po_number);
       setShowConfirmOptions(true);
-      setStatusMessage(t.confirmPrompt(data.po_number)); // ✅ now uses updated lang
+      setStatusMessage(t.confirmPrompt(data.po_number)); // now uses updated lang
     } else if (data.message === "Retry requested") {
       resetApp();
       setStatusMessage(t.retry);
@@ -240,14 +255,23 @@ function App() {
   };  
 
   // Reset the app state for a new recording
-  const resetApp = () => {
+  const resetApp = async () => {
     const t = getT(detectedLang);
+  
+    // Reset backend state too
+    try {
+      await fetch("/reset", { method: "POST" });
+    } catch (error) {
+      console.error("Failed to reset backend state:", error);
+    }
+  
     setDetectedPO(null);
     setShowConfirmOptions(false);
     setPoDetails(null);
     setStatusMessage(t.ready);
     setAudioURL(null);
   };
+  
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-4">

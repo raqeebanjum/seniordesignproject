@@ -9,6 +9,7 @@ from pydub import AudioSegment
 import azure.cognitiveservices.speech as speechsdk
 from collections import deque  # New import for queue functionality
 import re
+from difflib import get_close_matches
 
 # Azure API keys
 speech_key = "G1qZMOd4MFuiqN6jwSPcStpRPgdl3zAQM0PxfFNXFIfXMq7v2ALbJQQJ99BBACYeBjFXJ3w3AAAYACOGorwn"
@@ -53,7 +54,7 @@ def get_po_details(po_number):
         
         return details_str
     else:
-        print(f"❌ PO Number '{po_number}' not found.")
+        print(f"PO Number '{po_number}' not found.")
         return None
 
 def convert_audio_to_wav(input_path, output_path):
@@ -64,7 +65,7 @@ def convert_audio_to_wav(input_path, output_path):
 
 def recognize_speech_from_file(audio_path):
     """Recognize speech and detect language from audio file using Azure"""
-    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-US", "es-US"])
+    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-US", "en-US"])
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
     audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
 
@@ -82,6 +83,9 @@ def recognize_speech_from_file(audio_path):
     elif result.reason == speechsdk.ResultReason.NoMatch:
         return "No speech could be recognized", detected_lang
     elif result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = result.cancellation_details
+        print("CANCELED: Reason =", cancellation_details.reason)
+        print("CANCELED: ErrorDetails =", cancellation_details.error_details)
         return f"Speech recognition canceled: {result.cancellation_details.reason}", detected_lang
 
 
@@ -89,7 +93,7 @@ def synthesize_speech(text, output_path, language="es-US"):
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
 
     if language == "es-US":
-        speech_config.speech_synthesis_voice_name = "es-US-ElviraNeural"
+        speech_config.speech_synthesis_voice_name = "es-US-PalomaNeural"
     else:
         speech_config.speech_synthesis_voice_name = "en-US-JennyNeural"
 
@@ -99,7 +103,23 @@ def synthesize_speech(text, output_path, language="es-US"):
     result = synthesizer.speak_text_async(text).get()
 
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-        print(f"Text-to-Speech failed: {result.error_details}")
+        if result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = result.cancellation_details
+            print("TTS Canceled: ", cancellation_details.reason)
+            print("TTS Error Details: ", cancellation_details.error_details)
+        else:
+            print("TTS failed for an unknown reason.")
+        return
+    
+    print("TTS synthesis completed successfully.")
+
+    if os.path.exists(output_path):
+        print("Audio file written:", output_path)
+    else:
+        print("Audio file not found after synthesis:", output_path)
+
+
+
 
 def is_arrival(text, lang):
     if lang == "es-US":
@@ -123,8 +143,9 @@ def is_confirmation(text, language):
         ]
     }
 
+    words = text.lower().split()
     phrases = confirmations.get(language, confirmations["es-US"])
-    return any(phrase in text.lower() for phrase in phrases)
+    return any(get_close_matches(word, phrases, cutoff=0.6) for word in words)
 
 def is_rejection(text, language):
     """Check if the text is a rejection, localized by language"""
@@ -409,13 +430,13 @@ def enqueue_po_items(po_number):
     queue.clear()
 
     if po_number not in po_dict:
-        print(f"❌ PO Number '{po_number}' not found.")
+        print(f"PO Number '{po_number}' not found.")
         return
 
     items = po_dict[po_number].get("items", {})
 
     if not items:
-        print(f"⚠️ PO {po_number} has no items to process.")
+        print(f"PO {po_number} has no items to process.")
         return
 
     for item_name, details in items.items():
@@ -425,7 +446,7 @@ def enqueue_po_items(po_number):
             "bin_location": details["bin_location"]
         })
 
-    print(f"✅ Queue successfully populated for PO {po_number}:")
+    print(f"Queue successfully populated for PO {po_number}:")
     for i, item in enumerate(queue, 1):
         print(f"{i}. {item['name']} (Item: {item['item_number']}, Bin: {item['bin_location']})")
 
@@ -485,6 +506,18 @@ def handle_arrival(language):
         "item": current_item,
         "next_action": "confirm_placement"
     }
+
+@app.route('/reset', methods=['POST'])
+def reset_backend_state():
+    global current_state, current_item, current_po_number, last_detected_po
+    queue.clear()
+    current_state = 'awaiting_po'
+    current_item = None
+    current_po_number = None
+    last_detected_po = None
+    print("🔄 Backend state reset")
+    return jsonify({"message": "Backend state reset"})
+
 
 
 
