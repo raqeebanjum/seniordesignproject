@@ -305,7 +305,7 @@ def handle_placement(language):
         if language == "es-US":
             ai_text = f"Todos los artículos del {current_po_number} han sido recibidos. ¡Buen chico!"
         else:
-            ai_text = f"All items in {current_po_number} have been received. Good Boy!"
+            ai_text = f"All items in {current_po_number} have been received."
         current_state = 'awaiting_po'
         current_item = None
         current_po_number = None
