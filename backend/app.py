@@ -8,9 +8,11 @@ import os
 from pydub import AudioSegment
 import azure.cognitiveservices.speech as speechsdk
 from collections import deque  # New import for queue functionality
+import re
+from difflib import get_close_matches
 
 # Azure API keys
-speech_key = "G1qZMOd4MFuiqN6jwSPcStpRPgdl3zAQM0PxfFNXFIfXMq7v2ALbJQQJ99BBACYeBjFXJ3w3AAAYACOGorwn"
+speech_key = "put azure api key here"
 service_region = "eastus"
 
 app = Flask(__name__)
@@ -29,11 +31,11 @@ itemsFilePath = os.path.join("data", "items.json")
 try:
     with open(itemsFilePath, "r") as file:
         po_dict = json.load(file)
-        print("✅ PO data loaded successfully!")
+        print("PO data loaded successfully!")
 except FileNotFoundError:
-    print(f"❌ Error: File not found at {itemsFilePath}. Check the path.")
+    print(f"Error: File not found at {itemsFilePath}. Check the path.")
 except json.JSONDecodeError:
-    print("❌ Error: Invalid JSON format in items.json.")
+    print("Error: Invalid JSON format in items.json.")
 
 
 # File paths
@@ -52,7 +54,7 @@ def get_po_details(po_number):
         
         return details_str
     else:
-        print(f"❌ PO Number '{po_number}' not found.")
+        print(f"PO Number '{po_number}' not found.")
         return None
 
 def convert_audio_to_wav(input_path, output_path):
@@ -62,44 +64,110 @@ def convert_audio_to_wav(input_path, output_path):
     audio.export(output_path, format='wav')
 
 def recognize_speech_from_file(audio_path):
-    """Recognize speech from audio file using Azure"""
+    """Recognize speech and detect language from audio file using Azure"""
+    auto_detect_source_language_config = speechsdk.languageconfig.AutoDetectSourceLanguageConfig(languages=["es-US", "en-US"])
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
     audio_config = speechsdk.audio.AudioConfig(filename=audio_path)
-    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config)
+
+    # Use auto-detect language config
+    speech_recognizer = speechsdk.SpeechRecognizer(speech_config=speech_config, audio_config=audio_config, auto_detect_source_language_config=auto_detect_source_language_config)
 
     result = speech_recognizer.recognize_once_async().get()
 
-    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
-        return result.text
-    elif result.reason == speechsdk.ResultReason.NoMatch:
-        return "No speech could be recognized"
-    elif result.reason == speechsdk.ResultReason.Canceled:
-        return f"Speech recognition canceled: {result.cancellation_details.reason}"
+    # Get the detected language from the result
+    detected_lang = result.properties.get(speechsdk.PropertyId.SpeechServiceConnection_AutoDetectSourceLanguageResult)
+    detected_lang = detected_lang or "es-US"
 
-def synthesize_speech(text, output_path):
-    """Convert text to speech using Azure"""
+    if result.reason == speechsdk.ResultReason.RecognizedSpeech:
+        return result.text, detected_lang
+    elif result.reason == speechsdk.ResultReason.NoMatch:
+        return "No speech could be recognized", detected_lang
+    elif result.reason == speechsdk.ResultReason.Canceled:
+        cancellation_details = result.cancellation_details
+        print("CANCELED: Reason =", cancellation_details.reason)
+        print("CANCELED: ErrorDetails =", cancellation_details.error_details)
+        return f"Speech recognition canceled: {result.cancellation_details.reason}", detected_lang
+
+
+def synthesize_speech(text, output_path, language="es-US"):
     speech_config = speechsdk.SpeechConfig(subscription=speech_key, region=service_region)
-    speech_config.speech_synthesis_voice_name = "en-US-JennyNeural"
+
+    if language == "es-US":
+        speech_config.speech_synthesis_voice_name = "es-US-PalomaNeural"
+    else:
+        speech_config.speech_synthesis_voice_name = "en-US-JennyNeural"
 
     audio_config = speechsdk.audio.AudioOutputConfig(filename=output_path)
     synthesizer = speechsdk.SpeechSynthesizer(speech_config=speech_config, audio_config=audio_config)
-    
+
     result = synthesizer.speak_text_async(text).get()
-    
+
     if result.reason != speechsdk.ResultReason.SynthesizingAudioCompleted:
-        print(f"Text-to-Speech failed: {result.error_details}")
+        if result.reason == speechsdk.ResultReason.Canceled:
+            cancellation_details = result.cancellation_details
+            print("TTS Canceled: ", cancellation_details.reason)
+            print("TTS Error Details: ", cancellation_details.error_details)
+        else:
+            print("TTS failed for an unknown reason.")
+        return
+    
+    print("TTS synthesis completed successfully.")
 
-def is_confirmation(text):
-    """Check if the text is a confirmation"""
-    confirmation_phrases = ['yes', 'correct', 'that is correct', "that's correct", 'yeah', 'yep', 'right']
-    return any(phrase in text.lower() for phrase in confirmation_phrases)
+    if os.path.exists(output_path):
+        print("Audio file written:", output_path)
+    else:
+        print("Audio file not found after synthesis:", output_path)
 
-def is_rejection(text):
-    """Check if the text is a rejection"""
-    rejection_phrases = ['no', "that's wrong", 'incorrect', 'that is wrong','nah', 'nope', 'not correct']
-    return any(phrase in text.lower() for phrase in rejection_phrases)
 
-def process_confirmation(po_number):
+
+
+def is_arrival(text, language):
+    confirmations = {
+        "en-US": [
+            'im there', 'i am there', 'im there'
+        ],
+        "es-US": [
+            'ya llegue', 'he llegado', 'llegue', 'estoy aqui', 'Ya yage', 'Ya, ya, ya', 'Ya ya gay'
+        ]
+    }
+    print(f"Raw transcript: {text}")
+
+def is_placement(text, lang):
+    if lang == "es-US":
+        return any(p in text.lower() for p in ["ya lo coloqué", "ya lo puse", "coloqué"])
+    return any(p in text.lower() for p in ["i've placed it", "i placed it", "i have placed it"])
+
+
+def is_confirmation(text, language):
+    """Check if the text is a confirmation, localized by language"""
+    confirmations = {
+        "en-US": [
+            'yes', 'correct', 'that is correct', "that's correct", 'yeah', 'yep', 'right'
+        ],
+        "es-US": [
+            'sí', 'si', 'es correcto', 'eso es correcto', 'claro', 'afirmativo'
+        ]
+    }
+
+    words = text.lower().split()
+    phrases = confirmations.get(language, confirmations["es-US"])
+    return any(get_close_matches(word, phrases, cutoff=0.6) for word in words)
+
+def is_rejection(text, language):
+    """Check if the text is a rejection, localized by language"""
+    rejections = {
+        "en-US": [
+            'no', "that's wrong", 'incorrect', 'that is wrong', 'nah', 'nope', 'not correct'
+        ],
+        "es-US": [
+            'no', 'no es correcto', 'eso es incorrecto', 'incorrecto', 'negativo'
+        ]
+    }
+
+    phrases = rejections.get(language, rejections["es-US"])
+    return any(phrase in text.lower() for phrase in phrases)
+
+def process_confirmation(po_number, language):
     global current_state, current_item, current_po_number
     
     po_exists = po_number in po_dict
@@ -116,19 +184,29 @@ def process_confirmation(po_number):
             current_item = queue[0]
             bin_location = current_item["bin_location"]
             current_state = 'awaiting_arrival'
-            ai_text = (
-                f"Found {po_number}. "
-                f"Your first bin location is {bin_location}. "
-                "Say 'I'm there' when you arrive to get placement instructions."
-            )
+            if language == "es-US":
+                ai_text = (
+                    f"PO {po_number} encontrado. "
+                    f"Tu primera ubicación del contenedor es {bin_location}. "
+                    "Di 'Ya llegué' cuando llegues para recibir instrucciones de colocación."
+                )
+            else:
+                ai_text = (
+                    f"Found {po_number}. "
+                    f"Your first bin location is {bin_location}. "
+                    "Say 'I'm there' when you arrive to get placement instructions."
+                )
         else:
-            ai_text = f"Found {po_number}, but there are no items in the queue."
+            if language == "es-US":
+                ai_text = f"PO {po_number} encontrado, pero no hay artículos en la cola."
+            else:
+                ai_text = f"Found {po_number}, but there are no items in the queue."
             current_state = 'awaiting_po'  # Reset state if no items
     else:
         ai_text = f"PO {po_number} was not found in our system. Please try another PO number."
         current_state = 'awaiting_po'  # Reset state if PO not found
 
-    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    synthesize_speech(ai_text, AI_AUDIO_PATH, language=language)
 
     return {
         "message": ai_text,
@@ -139,10 +217,13 @@ def process_confirmation(po_number):
         "bin_location": bin_location
     }
 
-def process_rejection():
+def process_rejection(language):
     """Process a rejection of the detected PO number"""
-    ai_text = "Let's try again. Please provide the PO number."
-    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    if language == 'es-US':
+        ai_text = "Intentémoslo de nuevo. Por favor proporcione el número de orden de compra."
+    else:
+        ai_text = "Let's try again. Please provide the PO number."
+    synthesize_speech(ai_text, AI_AUDIO_PATH, language=language)
     
     return {
         "message": "Retry requested",
@@ -151,25 +232,40 @@ def process_rejection():
     }
 
 # This is a helper function that's for whenever the user says something that isn't expected
-def handle_unexpected_input(transcript, current_state):
+def handle_unexpected_input(transcript, current_state, language):
     
     if current_state == 'awaiting_po':
-        ai_text = "I'm sorry, I didn't understand that. Please provide a valid PO number."
+        if language == "es-US":
+            ai_text = "Lo siento, no entendí eso. Por favor proporcione un número de orden de compra válido."
+        else:
+            ai_text = "I'm sorry, I didn't understand that. Please provide a valid PO number."
     
     elif current_state == 'awaiting_arrival':
-        ai_text = "I'm sorry, I didn't understand that. Please say 'I'm there' when you arrive at the bin location."
+        if language == "es-US":
+            ai_text = "Lo siento, no entendí eso. Por favor diga 'Ya llegué' cuando llegue a la ubicación del contenedor."
+        else:
+            ai_text = "I'm sorry, I didn't understand that. Please say 'I'm there' when you arrive at the bin location."
     
     elif current_state == 'awaiting_placement':
-        ai_text = "I'm sorry, I didn't understand that. Please say 'I've placed it' once you've put the item in the bin."
+        if language == "es-US":
+            ai_text = "Lo siento, no entendí eso. Por favor diga 'Ya lo puse' cuando haya colocado el artículo en el contenedor."
+        else:
+            ai_text = "I'm sorry, I didn't understand that. Please say 'I've placed it' once you've put the item in the bin."
     
     elif current_state == 'completed':
-        ai_text = "I'm sorry, I didn't understand that. Please provide a PO number to start a new task."
+        if language == "es-US":
+            ai_text = "Lo siento, no entendí eso. Por favor proporcione un número de orden de compra para comenzar una nueva tarea."
+        else:
+            ai_text = "I'm sorry, I didn't understand that. Please provide a PO number to start a new task."
     
     else:
         # Default fallback for unknown states
-        ai_text = "I'm sorry, I didn't understand that. Please try again."
+        if language == "es-US":
+            ai_text = "Lo siento, no entendí eso. Por favor, inténtalo de nuevo."
+        else:
+            ai_text = "I'm sorry, I didn't understand that. Please try again."
     
-    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    synthesize_speech(ai_text, AI_AUDIO_PATH, language=language)
     
     return {
         "message": ai_text,
@@ -178,7 +274,7 @@ def handle_unexpected_input(transcript, current_state):
     }
 
 # this function is for whenever we're actually placing the items
-def handle_placement():
+def handle_placement(language):
     global current_state, current_item, current_po_number
     
     placed_item = current_item  # Just to reference it in our response
@@ -189,40 +285,58 @@ def handle_placement():
     # If more items remain, direct the user to the next bin
     if queue:
         current_item = queue[0]
-        ai_text = (
-            f" {placed_item['name']} Placed. "
-            f"Next, go to bin location {current_item['bin_location']} "
-            f"for {current_item['name']} (Item {current_item['item_number']}). "
-            "Say 'I'm there' when you arrive."
-        )
+        if language == "es-US":
+            ai_text = (
+                f"{placed_item['name']} colocado. "
+                f"Ahora ve al contenedor {current_item['bin_location']} "
+                f"para {current_item['name']} (Artículo {current_item['item_number']}). "
+                "Di 'Ya llegué' cuando estés allí."
+            )
+        else:
+            ai_text = (
+                f" {placed_item['name']} Placed. "
+                f"Next, go to bin location {current_item['bin_location']} "
+                f"for {current_item['name']} (Item {current_item['item_number']}). "
+                "Say 'I'm there' when you arrive."
+            )
         current_state = 'awaiting_arrival'
     else:
         # No more items: we're done with this PO
-        ai_text = f"All items in {current_po_number} have been received. Good Boy!"
+        if language == "es-US":
+            ai_text = f"Todos los artículos del {current_po_number} han sido recibidos. ¡Buen chico!"
+        else:
+            ai_text = f"All items in {current_po_number} have been received. Good Boy!"
         current_state = 'awaiting_po'
         current_item = None
         current_po_number = None
 
-    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    synthesize_speech(ai_text, AI_AUDIO_PATH, language=language)
     return {
         "message": ai_text,
         "next_action": "completed" if not queue else "go_to_next_bin"
     }
 
-def process_new_po(transcript):
+def process_new_po(transcript, language):
     """Process a new PO number input"""
     clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
     po_number = clean_transcript.upper()
     
     # If no speech was recognized, handle that case
     if transcript == "No speech could be recognized":
-        ai_text = "I didn't hear anything. Please try again."
+        if language == "es-US":
+            ai_text = "No escuché nada. Por favor, inténtalo de nuevo."
+        else:
+            ai_text = "I didn't hear anything. Please try again."
         show_confirm = False
     else:
-        ai_text = f"I heard {transcript}, is that correct?"
+        if language == "es-US":
+            ai_text = f"Escuché {transcript}. ¿Es correcto?"
+        else:
+            ai_text = f"I heard {transcript}, is that correct?"
+
         show_confirm = True
     
-    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    synthesize_speech(ai_text, AI_AUDIO_PATH, language=language)
     
     return {
         "message": "File processed successfully",
@@ -253,51 +367,45 @@ def upload_audio():
     convert_audio_to_wav(ORIGINAL_PATH, WAV_PATH)
 
     # Transcribe speech
-    transcript = recognize_speech_from_file(WAV_PATH)
+    transcript, detected_lang = recognize_speech_from_file(WAV_PATH)
+    print(f"🎙️ Detected language: {detected_lang}")
     
     # Check if this is a confirmation, rejection, or new PO
+    # Handle audio transcription result
     if transcript == "No speech could be recognized" or transcript.startswith("Speech recognition canceled"):
-        response_data = process_new_po(transcript)
-    
-    elif last_detected_po and is_confirmation(transcript):
+        response_data = process_new_po(transcript, detected_lang)
+    elif last_detected_po and is_confirmation(transcript, detected_lang):
         po_number = last_detected_po
-        last_detected_po = None  # Reset for next input
-        response_data = process_confirmation(po_number)
-    
-    elif last_detected_po and is_rejection(transcript):
-        last_detected_po = None  # Reset for next input
-        response_data = process_rejection()
-    
-    elif current_state == 'awaiting_arrival' and any(phrase in transcript.lower() for phrase in ["i'm there", "i am there", "im there", "i'm there"]):
-        response_data = handle_arrival()
-    
+        last_detected_po = None
+        response_data = process_confirmation(po_number, detected_lang)
+    elif last_detected_po and is_rejection(transcript, detected_lang):
+        last_detected_po = None
+        response_data = process_rejection(detected_lang)
+    elif current_state == 'awaiting_arrival' and is_arrival(transcript, detected_lang):
+        response_data = handle_arrival(detected_lang)
     elif current_state == 'awaiting_arrival':
-        # User said something else when we were expecting "I'm there"
-        response_data = handle_unexpected_input(transcript, current_state)
-    
-    elif current_state == 'awaiting_placement' and any(phrase in transcript.lower() for phrase in ["i've placed it", "i placed it", "i have placed it"]):
-        response_data = handle_placement()
-    
+        response_data = handle_unexpected_input(transcript, current_state, detected_lang)
+    elif current_state == 'awaiting_placement' and is_placement(transcript, detected_lang):
+        response_data = handle_placement(detected_lang)
     elif current_state == 'awaiting_placement':
-        # User said something else when we were expecting "I've placed it"
-        response_data = handle_unexpected_input(transcript, current_state)
-    
+        response_data = handle_unexpected_input(transcript, current_state, detected_lang)
     elif current_state == 'completed' or current_state == 'awaiting_po':
         # We're expecting a new PO number
-        clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
-        last_detected_po = clean_transcript.upper()
-        response_data = process_new_po(transcript)
-    
+        clean_transcript = re.sub(r'[^a-zA-Z0-9]', '', transcript).upper()
+        last_detected_po = clean_transcript
+        response_data = process_new_po(transcript, detected_lang)
     else:
         # Default case - assume it's a PO number
-        clean_transcript = transcript.strip().rstrip('.').rstrip(',').rstrip('?')
-        last_detected_po = clean_transcript.upper()
-        response_data = process_new_po(transcript)
-    
+        clean_transcript = re.sub(r'[^a-zA-Z0-9]', '', transcript).upper()
+        last_detected_po = clean_transcript
+        response_data = process_new_po(transcript, detected_lang)
+        response_data["detected_lang"] = detected_lang
+
+
+    # Make sure the frontend ALWAYS gets the language
+    response_data["detected_lang"] = detected_lang
+
     return jsonify(response_data)
-
-
-
 
 
 @app.route('/get-ai-audio', methods=['GET'])
@@ -328,13 +436,13 @@ def enqueue_po_items(po_number):
     queue.clear()
 
     if po_number not in po_dict:
-        print(f"❌ PO Number '{po_number}' not found.")
+        print(f"PO Number '{po_number}' not found.")
         return
 
     items = po_dict[po_number].get("items", {})
 
     if not items:
-        print(f"⚠️ PO {po_number} has no items to process.")
+        print(f"PO {po_number} has no items to process.")
         return
 
     for item_name, details in items.items():
@@ -344,7 +452,7 @@ def enqueue_po_items(po_number):
             "bin_location": details["bin_location"]
         })
 
-    print(f"✅ Queue successfully populated for PO {po_number}:")
+    print(f"Queue successfully populated for PO {po_number}:")
     for i, item in enumerate(queue, 1):
         print(f"{i}. {item['name']} (Item: {item['item_number']}, Bin: {item['bin_location']})")
 
@@ -364,7 +472,9 @@ def dequeue_item():
 # Endpoint to enqueue all PO items into the queue
 @app.route("/enqueue", methods=["POST"])
 def enqueue():
-    enqueue_po_items()
+    data = request.get_json()
+    po_number = data.get("po_number")
+    enqueue_po_items(po_number)
     return jsonify({"message": "PO items enqueued", "queue": list(queue)})
 
 # Endpoint to dequeue the next PO item from the queue
@@ -381,21 +491,39 @@ def get_queue():
     return jsonify({"queue": list(queue)})
 
 # Uncommented queue handling endpoints
-def handle_arrival():
+def handle_arrival(language):
     global current_state, current_item
     
     if current_state == 'awaiting_arrival' and current_item:
-        ai_text = f"Place {current_item['name']} (Item {current_item['item_number']}) in bin {current_item['bin_location']}. Say 'I\'ve placed it' when finished."
+        if language == "es-US":
+            ai_text = f"Coloca {current_item['name']} (Artículo {current_item['item_number']}) en el contenedor {current_item['bin_location']}. Di 'ya lo coloqué' cuando termines."
+        else:
+            ai_text = f"Place {current_item['name']} (Item {current_item['item_number']}) in bin {current_item['bin_location']}. Say 'I\'ve placed it' when finished."
         current_state = 'awaiting_placement'
     else:
-        ai_text = "Please proceed to the next bin location."
+        if language == "es-US":
+            ai_text = "Por favor, procede a la siguiente ubicación del contenedor."
+        else:
+            ai_text = "Please proceed to the next bin location."
     
-    synthesize_speech(ai_text, AI_AUDIO_PATH)
+    synthesize_speech(ai_text, AI_AUDIO_PATH, language=language)
     return {
         "message": ai_text,
         "item": current_item,
         "next_action": "confirm_placement"
     }
+
+@app.route('/reset', methods=['POST'])
+def reset_backend_state():
+    global current_state, current_item, current_po_number, last_detected_po
+    queue.clear()
+    current_state = 'awaiting_po'
+    current_item = None
+    current_po_number = None
+    last_detected_po = None
+    print("🔄 Backend state reset")
+    return jsonify({"message": "Backend state reset"})
+
 
 
 

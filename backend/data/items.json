@@ -5,11 +5,11 @@
           "item_number": "A123",
           "bin_location": "A15"
         },
-        "Thanos Truck": {
+        "100 Gorillas": {
           "item_number": "A124",
           "bin_location": "B22"
         },
-        "Bread Slippers": {
+        "Toys r Us Hat": {
           "item_number": "A125",
           "bin_location": "C69"
         }
@@ -17,7 +17,7 @@
     },
     "PO1235": {
       "items": {
-        "Tek Knight Party Invite": {
+        "Labubu": {
           "item_number": "B123",
           "bin_location": "D41"
         },
