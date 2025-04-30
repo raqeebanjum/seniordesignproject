@@ -12,7 +12,7 @@ import re
 from difflib import get_close_matches
 
 # Azure API keys
-speech_key = "G1qZMOd4MFuiqN6jwSPcStpRPgdl3zAQM0PxfFNXFIfXMq7v2ALbJQQJ99BBACYeBjFXJ3w3AAAYACOGorwn"
+speech_key = "put azure api key here"
 service_region = "eastus"
 
 app = Flask(__name__)
@@ -121,10 +121,16 @@ def synthesize_speech(text, output_path, language="es-US"):
 
 
 
-def is_arrival(text, lang):
-    if lang == "es-US":
-        return any(p in text.lower() for p in ["ya llegué", "he llegado", "llegué"])
-    return any(p in text.lower() for p in ["i'm there", "i am there", "im there"])
+def is_arrival(text, language):
+    confirmations = {
+        "en-US": [
+            'im there', 'i am there', 'im there'
+        ],
+        "es-US": [
+            'ya llegue', 'he llegado', 'llegue', 'estoy aqui', 'Ya yage', 'Ya, ya, ya', 'Ya ya gay'
+        ]
+    }
+    print(f"Raw transcript: {text}")
 
 def is_placement(text, lang):
     if lang == "es-US":
